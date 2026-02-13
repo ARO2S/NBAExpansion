@@ -1,0 +1,248 @@
+// NBA Expansion Draft Simulator - Prisma Schema
+// Uses Supabase Postgres (DATABASE_URL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Season {
+  id                     String   @id @default(uuid()) @db.Uuid
+  year                   Int
+  salaryCap              Decimal  @map("salary_cap") @db.Decimal(14, 2)
+  salaryFloorPct         Decimal? @map("salary_floor_pct") @db.Decimal(5, 4)
+  expansionCapPctYear1    Decimal? @map("expansion_cap_pct_year1") @db.Decimal(5, 4)
+  expansionCapPctYear2   Decimal? @map("expansion_cap_pct_year2") @db.Decimal(5, 4)
+  rulesDefaultJson       Json?    @map("rules_default_json") @db.JsonB
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  teams                 Team[]
+  contracts             Contract[]
+  playerSeasonMetrics   PlayerSeasonMetric[]
+  draftRuns             DraftRun[]
+  canonicalProtectionLists CanonicalProtectionList[]
+}
+
+model PlayerAccolade {
+  playerId             String   @id @map("player_id") @db.Uuid
+  allStarAppearances   Int      @default(0) @map("all_star_appearances")
+  championships        Int      @default(0) @map("championships")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+}
+
+model Team {
+  id               String   @id @default(uuid()) @db.Uuid
+  seasonId         String   @map("season_id") @db.Uuid
+  name             String
+  abbrev           String
+  isExpansion      Boolean  @default(false) @map("is_expansion")
+  providerTeamId   String?  @map("provider_team_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  season     Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  contracts  Contract[]
+  protectionLists    ProtectionList[]
+  canonicalProtectionLists CanonicalProtectionList[]
+  teamProtectionLocks TeamProtectionLock[]
+  draftPicksFrom     DraftPick[]  @relation("PicksFromTeam")
+  playerSeasonMetrics PlayerSeasonMetric[]
+}
+
+model Player {
+  id               String   @id @default(uuid()) @db.Uuid
+  providerPlayerId String?  @map("provider_player_id")
+  firstName        String   @map("first_name")
+  lastName         String   @map("last_name")
+  birthdate        DateTime @db.Date
+  primaryPosition  String   @map("primary_position") // PG, SG, SF, PF, C
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  contracts             Contract[]
+  playerSeasonMetrics   PlayerSeasonMetric[]
+  protectionListItems   ProtectionListItem[]
+  canonicalProtectionListItems CanonicalProtectionListItem[]
+  draftPicks            DraftPick[]
+  accolade              PlayerAccolade?
+}
+
+// Player ↔ Team link: a player is on a team for a season via Contract. Query: Player → Contract → Team.
+model Contract {
+  id                 String   @id @default(uuid()) @db.Uuid
+  seasonId           String   @map("season_id") @db.Uuid
+  teamId             String   @map("team_id") @db.Uuid
+  playerId           String   @map("player_id") @db.Uuid
+  salary             Decimal  @db.Decimal(14, 2)
+  yearsRemaining     Int      @map("years_remaining")
+  hasPlayerOption    Boolean  @default(false) @map("has_player_option")
+  hasTeamOption      Boolean  @default(false) @map("has_team_option")
+  isUFAAfterSeason   Boolean  @default(false) @map("is_uFA_after_season")
+  isRFAAfterSeason   Boolean  @default(false) @map("is_rFA_after_season")
+  guaranteedPct      Decimal? @map("guaranteed_pct") @db.Decimal(5, 4)
+  notes              String?  @db.Text
+
+  season   Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  team     Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([seasonId, teamId])
+}
+
+model PlayerSeasonMetric {
+  id               String   @id @default(uuid()) @db.Uuid
+  seasonId         String   @map("season_id") @db.Uuid
+  playerId         String   @map("player_id") @db.Uuid
+  teamId           String   @map("team_id") @db.Uuid
+  gamesPlayed      Int      @map("games_played")
+  minutesPerGame   Decimal  @map("minutes_per_game") @db.Decimal(5, 2)
+  starts           Int
+  pointsPerGame    Decimal  @map("points_per_game") @db.Decimal(5, 2)
+  assistsPerGame   Decimal  @map("assists_per_game") @db.Decimal(5, 2)
+  reboundsPerGame  Decimal  @map("rebounds_per_game") @db.Decimal(5, 2)
+  overallRating    Decimal? @map("overall_rating") @db.Decimal(5, 2)  // 0-100 optional
+  impactMetric     Decimal? @map("impact_metric") @db.Decimal(6, 3)
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([seasonId, teamId])
+}
+
+model DraftRun {
+  id               String   @id @default(uuid()) @db.Uuid
+  seasonId         String   @map("season_id") @db.Uuid
+  ownerUserId      String?  @map("owner_user_id") @db.Uuid
+  name             String
+  rulesSnapshotJson Json    @map("rules_snapshot_json") @db.JsonB
+  createdAt        DateTime @default(now()) @map("created_at")
+  expiresAt        DateTime? @map("expires_at")
+  status           String   @default("setup")  // setup | protecting | drafting | complete
+
+  season           Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  runTeams         RunTeam[]
+  protectionLists  ProtectionList[]
+  teamProtectionLocks TeamProtectionLock[]
+  draftPicks       DraftPick[]
+  exports          Export[]
+}
+
+// When a team is locked without any user modifications, we only store the lock.
+// ProtectionList is created only when a user toggles a player's protection.
+model TeamProtectionLock {
+  id        String   @id @default(uuid()) @db.Uuid
+  runId     String   @map("run_id") @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  lockedAt  DateTime @default(now()) @map("locked_at") @db.Timestamptz
+
+  run  DraftRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  team Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, teamId])
+}
+
+model RunTeam {
+  id        String   @id @default(uuid()) @db.Uuid
+  runId     String   @map("run_id") @db.Uuid
+  name      String
+  abbrev    String
+  userControls Boolean @default(false) @map("user_controls")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  run        DraftRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  draftPicks DraftPick[]
+}
+
+model ProtectionList {
+  id              String    @id @default(uuid()) @db.Uuid
+  runId           String    @map("run_id") @db.Uuid
+  teamId          String    @map("team_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+  lockedAt        DateTime? @map("locked_at")
+  createdByUserId String?   @map("created_by_user_id") @db.Uuid
+
+  run         DraftRun              @relation(fields: [runId], references: [id], onDelete: Cascade)
+  team        Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  items       ProtectionListItem[]
+
+  @@unique([runId, teamId])
+  @@index([runId, teamId])
+}
+
+model ProtectionListItem {
+  id                String   @id @default(uuid()) @db.Uuid
+  protectionListId  String   @map("protection_list_id") @db.Uuid
+  playerId          String   @map("player_id") @db.Uuid
+  isProtected       Boolean  @map("is_protected")
+  protectScore      Decimal? @map("protect_score") @db.Decimal(8, 4)
+  scoreBreakdownJson Json?   @map("score_breakdown_json") @db.JsonB
+  reasonNotes       String?  @map("reason_notes") @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  protectionList ProtectionList @relation(fields: [protectionListId], references: [id], onDelete: Cascade)
+  player         Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([protectionListId, playerId])
+  @@index([protectionListId, playerId])
+}
+
+model DraftPick {
+  id                    String   @id @default(uuid()) @db.Uuid
+  runId                 String   @map("run_id") @db.Uuid
+  pickNumber            Int      @map("pick_number")
+  expansionRunTeamId    String   @map("expansion_run_team_id") @db.Uuid
+  fromTeamId            String   @map("from_team_id") @db.Uuid
+  playerId              String   @map("player_id") @db.Uuid
+  salaryAtPick          Decimal  @map("salary_at_pick") @db.Decimal(14, 2)
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  run              DraftRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  expansionRunTeam RunTeam  @relation(fields: [expansionRunTeamId], references: [id], onDelete: Cascade)
+  fromTeam         Team     @relation("PicksFromTeam", fields: [fromTeamId], references: [id], onDelete: Cascade)
+  player           Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+}
+
+model Export {
+  id          String   @id @default(uuid()) @db.Uuid
+  runId       String   @map("run_id") @db.Uuid
+  type        String   // text | text_contracts | image
+  storagePath String?  @map("storage_path")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  run DraftRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+}
+
+// GM/KEY canonical protection list per team per season. Generated once; all runs use this as default.
+model CanonicalProtectionList {
+  id        String   @id @default(uuid()) @db.Uuid
+  seasonId  String   @map("season_id") @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  season Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  team   Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  items  CanonicalProtectionListItem[]
+
+  @@unique([seasonId, teamId])
+}
+
+model CanonicalProtectionListItem {
+  id                 String   @id @default(uuid()) @db.Uuid
+  canonicalListId    String   @map("canonical_list_id") @db.Uuid
+  playerId           String   @map("player_id") @db.Uuid
+  isProtected        Boolean  @map("is_protected")
+  protectScore       Decimal? @map("protect_score") @db.Decimal(8, 4)
+  scoreBreakdownJson Json?    @map("score_breakdown_json") @db.JsonB
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  canonicalList CanonicalProtectionList @relation(fields: [canonicalListId], references: [id], onDelete: Cascade)
+  player        Player                  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([canonicalListId, playerId])
+}
