@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, UserPlus } from "lucide-react";
+import { ArrowLeft, UserPlus, Check } from "lucide-react";
 
 export default function DraftPage() {
   const params = useParams();
@@ -33,7 +33,7 @@ export default function DraftPage() {
   async function loadRun() {
     const r = await fetch(`/api/runs/${runId}`).then((x) => x.json());
     setRun(r.run);
-    if (r.run?.runTeams?.[0]) {
+    if (r.run?.runTeams?.[0] && !selectedExpansionTeam) {
       setSelectedExpansionTeam(r.run.runTeams[0].id);
     }
   }
@@ -67,9 +67,29 @@ export default function DraftPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Pick failed");
-      await Promise.all([loadRun(), loadPool()]);
+
+      // Optimistic update: add the pick to local state immediately
+      if (data.pick) {
+        setRun((prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            status: data.status ?? prev.status,
+            draftPicks: [...(prev.draftPicks ?? []), data.pick],
+          };
+        });
+      }
+
+      // Optimistic update: remove drafted team from pool and mark team as having lost
+      setPool((prev) => prev.filter((p) => p.teamId !== fromTeamId));
+      setTeamsThatLost((prev) => [...prev, fromTeamId]);
+
+      // Background refresh for consistency (non-blocking)
+      loadPool().catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Pick failed");
+      // On error, refresh to get correct state
+      await Promise.all([loadRun(), loadPool()]);
     } finally {
       setPicking(null);
     }
@@ -140,13 +160,17 @@ export default function DraftPage() {
     abbrev: pl.teamAbbrev,
   })) ?? [];
   const expansionTeams = run.runTeams ?? [];
+
+  const draftPicks = run.draftPicks ?? [];
+  const rosterByTeam: Record<string, any[]> = {};
   const capByExpansion: Record<string, number> = {};
   for (const et of expansionTeams) {
-    const picks = run.draftPicks?.filter(
-      (p: any) => p.expansionTeamId === et.id
-    ) ?? [];
+    const picks = draftPicks.filter((p: any) => p.expansionTeamId === et.id);
+    rosterByTeam[et.id] = picks;
     capByExpansion[et.id] = picks.reduce((s: number, p: any) => s + (p.salaryAtPick ?? 0), 0);
   }
+
+  const currentRoster = rosterByTeam[selectedExpansionTeam] ?? [];
 
   return (
     <div className="min-h-screen bg-slate-900">
@@ -286,20 +310,67 @@ export default function DraftPage() {
             </Card>
 
             <Card className="border-white/10 bg-white/5">
-              <CardHeader>
-                <CardTitle className="text-white">Cap Sheet</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-white">
+                  Your Roster
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {currentRoster.length}
+                  </Badge>
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
+                {currentRoster.length === 0 ? (
+                  <p className="text-sm text-slate-500">No players drafted yet</p>
+                ) : (
+                  <div className="flex flex-col gap-1.5 max-h-[300px] overflow-y-auto">
+                    {currentRoster
+                      .sort((a: any, b: any) => a.pickNumber - b.pickNumber)
+                      .map((pick: any) => (
+                        <div
+                          key={pick.id ?? pick.playerId}
+                          className="flex items-center justify-between rounded border border-white/10 bg-white/5 px-3 py-1.5"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-xs font-mono text-slate-500 w-5 shrink-0">
+                              {pick.pickNumber}
+                            </span>
+                            <div className="min-w-0">
+                              <span className="font-medium text-white text-sm truncate">
+                                {pick.playerName}
+                              </span>
+                              <span className="ml-1.5 text-xs text-slate-400">
+                                {pick.position}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-xs text-slate-400">
+                              ${(pick.salaryAtPick / 1_000_000).toFixed(1)}M
+                            </span>
+                            <div className="text-[10px] text-slate-600">
+                              {pick.fromTeamName}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-white/10 bg-white/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-white text-sm">Cap Sheet</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
                 {expansionTeams.map((et: any) => {
                   const total = capByExpansion[et.id] ?? 0;
                   const overCap = total > expansionCap;
                   const underFloor = total < salaryFloor;
-                  const picks = run.draftPicks?.filter(
-                    (p: any) => p.expansionTeamId === et.id
-                  ) ?? [];
+                  const picks = rosterByTeam[et.id] ?? [];
                   return (
                     <div key={et.id} className="rounded border border-white/10 p-3">
-                      <div className="font-medium text-white">{et.name}</div>
+                      <div className="font-medium text-white text-sm">{et.name}</div>
                       <div className="text-sm text-slate-400">
                         Salary: ${(total / 1_000_000).toFixed(2)}M
                       </div>

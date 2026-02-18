@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { validateDraftPick } from "@/lib/draft-constraints";
 
 export async function POST(
   req: NextRequest,
@@ -21,26 +20,25 @@ export async function POST(
       );
     }
 
-    const run = await prisma.draftRun.findUnique({
-      where: { id: runId },
-      include: {
-        draftPicks: true,
-        runTeams: true,
-        season: true,
-      },
-    });
+    const [run, contract] = await Promise.all([
+      prisma.draftRun.findUnique({
+        where: { id: runId },
+        include: {
+          draftPicks: true,
+          runTeams: true,
+          season: true,
+        },
+      }),
+      prisma.contract.findFirst({
+        where: { playerId, teamId: fromTeamId },
+        include: { team: true },
+      }),
+    ]);
+
     if (!run) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
-
-    const contract = await prisma.contract.findFirst({
-      where: {
-        playerId,
-        teamId: fromTeamId,
-        seasonId: run.seasonId,
-      },
-    });
-    if (!contract) {
+    if (!contract || contract.team.seasonId !== run.seasonId) {
       return NextResponse.json(
         { error: "Contract not found for player/team" },
         { status: 400 }
@@ -56,30 +54,52 @@ export async function POST(
     }
 
     const teamsThatLost = new Set(run.draftPicks.map((p) => p.fromTeamId));
+    if (teamsThatLost.has(fromTeamId)) {
+      return NextResponse.json(
+        { error: "This team has already lost a player in this expansion draft." },
+        { status: 400 }
+      );
+    }
+
+    const rules = run.rulesSnapshotJson as any;
+    const expansionTeamsCount = run.runTeams.filter((t) => t.userControls).length || 1;
+    const maxPicks =
+      expansionTeamsCount === 1
+        ? rules.expansionDraftMaxPicks
+        : Math.ceil(rules.expansionDraftMaxPicks / expansionTeamsCount);
+
     const expansionPicks = run.draftPicks.filter(
       (p) => p.expansionRunTeamId === expansionRunTeamId
     );
-    const nextPickNumber = run.draftPicks.length + 1;
-
-    const { getDraftPoolForRun } = await import("@/lib/draft-pool");
-    const pool = (await getDraftPoolForRun(runId)) ?? [];
-
-    const rules = run.rulesSnapshotJson as any;
-    const err = validateDraftPick(
-      playerId,
-      fromTeamId,
-      expansionRunTeamId,
-      pool,
-      teamsThatLost,
-      expansionPicks.length,
-      rules,
-      run.runTeams.filter((t) => t.userControls).length || 1
-    );
-    if (err) {
-      return NextResponse.json({ error: err.message }, { status: 400 });
+    if (expansionPicks.length >= maxPicks) {
+      return NextResponse.json(
+        { error: `Expansion team has reached maximum picks (${maxPicks}).` },
+        { status: 400 }
+      );
     }
 
-    await prisma.draftPick.create({
+    const isProtected = await isPlayerProtected(runId, run.seasonId, fromTeamId, playerId);
+    if (isProtected) {
+      return NextResponse.json(
+        { error: "Player is not available in the draft pool." },
+        { status: 400 }
+      );
+    }
+
+    if (rules.uFAExemptFromProtection && contract.isUFAAfterSeason) {
+      // UFAs are always draftable, skip option checks
+    } else if (
+      !rules.allowDraftingPlayersWithOptions &&
+      (contract.hasPlayerOption || contract.hasTeamOption)
+    ) {
+      return NextResponse.json(
+        { error: "Player is not available in the draft pool." },
+        { status: 400 }
+      );
+    }
+
+    const nextPickNumber = run.draftPicks.length + 1;
+    const pick = await prisma.draftPick.create({
       data: {
         runId,
         pickNumber: nextPickNumber,
@@ -88,35 +108,33 @@ export async function POST(
         playerId,
         salaryAtPick: contract.salary,
       },
+      include: {
+        player: true,
+        fromTeam: true,
+        expansionRunTeam: true,
+      },
     });
 
-    const totalPicks = run.draftPicks.length + 1;
-    const allListsLocked = await (async () => {
-      const lists = await prisma.protectionList.count({
+    let newStatus = run.status;
+    if (run.status === "protecting") {
+      const unlockedCount = await prisma.protectionList.count({
         where: { runId, lockedAt: null },
       });
-      return lists === 0;
-    })();
-    let newStatus = run.status;
-    if (run.status === "protecting" && allListsLocked) {
-      newStatus = "drafting";
+      if (unlockedCount === 0) newStatus = "drafting";
     }
-    const maxPicksPerTeam = Math.ceil(
-      rules.expansionDraftMaxPicks / run.runTeams.length
-    );
+
     const totalForThisTeam = expansionPicks.length + 1;
-    if (totalForThisTeam >= maxPicksPerTeam) {
-      const counts = await Promise.all(
-        run.runTeams.map((t) =>
-          prisma.draftPick.count({
-            where: { runId, expansionRunTeamId: t.id },
-          })
-        )
+    if (totalForThisTeam >= maxPicks) {
+      const pickCounts = run.draftPicks.reduce<Record<string, number>>((acc, p) => {
+        acc[p.expansionRunTeamId] = (acc[p.expansionRunTeamId] ?? 0) + 1;
+        return acc;
+      }, {});
+      pickCounts[expansionRunTeamId] = (pickCounts[expansionRunTeamId] ?? 0) + 1;
+
+      const allAtMax = run.runTeams.every(
+        (t) => (pickCounts[t.id] ?? 0) >= maxPicks
       );
-      const allAtMax = counts.every((c) => c >= maxPicksPerTeam);
-      if (allAtMax) {
-        newStatus = "complete";
-      }
+      if (allAtMax) newStatus = "complete";
     }
 
     if (newStatus !== run.status) {
@@ -130,6 +148,18 @@ export async function POST(
       ok: true,
       pickNumber: nextPickNumber,
       status: newStatus,
+      pick: {
+        id: pick.id,
+        pickNumber: pick.pickNumber,
+        playerId: pick.playerId,
+        playerName: `${pick.player.firstName} ${pick.player.lastName}`,
+        position: pick.player.primaryPosition,
+        fromTeamId: pick.fromTeamId,
+        fromTeamName: pick.fromTeam.name,
+        expansionTeamId: pick.expansionRunTeamId,
+        expansionTeamName: pick.expansionRunTeam.name,
+        salaryAtPick: Number(pick.salaryAtPick),
+      },
     });
   } catch (e) {
     console.error(e);
@@ -138,4 +168,29 @@ export async function POST(
       { status: 500 }
     );
   }
+}
+
+async function isPlayerProtected(
+  runId: string,
+  seasonId: string,
+  teamId: string,
+  playerId: string
+): Promise<boolean> {
+  const plItem = await prisma.protectionListItem.findFirst({
+    where: {
+      protectionList: { runId, teamId },
+      playerId,
+    },
+  });
+  if (plItem) return plItem.isProtected;
+
+  const canonItem = await prisma.canonicalProtectionListItem.findFirst({
+    where: {
+      canonicalList: { seasonId, teamId },
+      playerId,
+    },
+  });
+  if (canonItem) return canonItem.isProtected;
+
+  return false;
 }

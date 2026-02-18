@@ -1,6 +1,5 @@
 import { prisma } from "./db";
 import { buildExposedPool, filterPoolByTeamLoss } from "./eligibility";
-import { getProtectionListForRun } from "@/app/actions/protectionList";
 
 export async function getDraftPoolForRun(runId: string) {
   const run = await prisma.draftRun.findUnique({
@@ -26,6 +25,7 @@ export async function getDraftPoolForRun(runId: string) {
   const plByTeam = new Map(run.protectionLists.map((pl) => [pl.teamId, pl]));
   const protectedPlayerIds = new Set<string>();
 
+  const teamsNeedingCanonical: string[] = [];
   for (const team of existingTeams) {
     const pl = plByTeam.get(team.id);
     if (pl) {
@@ -33,14 +33,22 @@ export async function getDraftPoolForRun(runId: string) {
         if (i.isProtected) protectedPlayerIds.add(i.playerId);
       }
     } else {
-      const result = await getProtectionListForRun(runId, team.id);
-      if (!("error" in result)) {
-        for (const i of result.items) {
-          if (i.isProtected) protectedPlayerIds.add(i.playerId);
-        }
+      teamsNeedingCanonical.push(team.id);
+    }
+  }
+
+  if (teamsNeedingCanonical.length > 0) {
+    const canonicalLists = await prisma.canonicalProtectionList.findMany({
+      where: { seasonId: run.seasonId, teamId: { in: teamsNeedingCanonical } },
+      include: { items: true },
+    });
+    for (const cl of canonicalLists) {
+      for (const i of cl.items) {
+        if (i.isProtected) protectedPlayerIds.add(i.playerId);
       }
     }
   }
+
   const teamsThatLost = new Set(run.draftPicks.map((p) => p.fromTeamId));
 
   const contracts = await prisma.contract.findMany({

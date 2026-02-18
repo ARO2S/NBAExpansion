@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getProtectionListForRun } from "@/app/actions/protectionList";
 
 export async function GET(
   req: NextRequest,
@@ -16,11 +15,7 @@ export async function GET(
         protectionLists: {
           include: {
             team: true,
-            items: {
-              include: {
-                player: true,
-              },
-            },
+            items: { include: { player: true } },
           },
         },
         teamProtectionLocks: true,
@@ -46,56 +41,94 @@ export async function GET(
       run.teamProtectionLocks.map((l) => [l.teamId, l.lockedAt])
     );
 
-    const protectionLists: Array<{
-      id: string | null;
-      teamId: string;
-      teamName: string;
-      teamAbbrev: string;
-      lockedAt: string | null;
-      items: Array<{
-        id: string | null;
-        playerId: string;
-        playerName: string;
-        position: string;
-        isProtected: boolean;
-        protectScore: number | null;
-        scoreBreakdown: unknown;
-      }>;
-    }> = [];
+    const teamsNeedingCanonical = existingTeams
+      .filter((t) => !plByTeam.has(t.id))
+      .map((t) => t.id);
 
-    for (const team of existingTeams) {
+    type CanonicalWithItems = Awaited<
+      ReturnType<typeof prisma.canonicalProtectionList.findMany<{
+        include: { items: { include: { player: true } } };
+      }>>
+    >[number];
+    const canonicalByTeam = new Map<string, CanonicalWithItems>();
+
+    if (teamsNeedingCanonical.length > 0) {
+      const canonicalLists = await prisma.canonicalProtectionList.findMany({
+        where: {
+          seasonId: run.seasonId,
+          teamId: { in: teamsNeedingCanonical },
+        },
+        include: { items: { include: { player: true } } },
+      });
+      for (const cl of canonicalLists) {
+        canonicalByTeam.set(cl.teamId, cl);
+      }
+    }
+
+    const protectionLists = existingTeams.map((team) => {
       const pl = plByTeam.get(team.id);
       const lockAt = pl?.lockedAt ?? lockByTeam.get(team.id) ?? null;
 
-      const result = await getProtectionListForRun(runId, team.id);
-      if ("error" in result) {
-        protectionLists.push({
+      if (pl) {
+        return {
+          id: pl.id,
+          teamId: team.id,
+          teamName: team.name,
+          teamAbbrev: team.abbrev,
+          lockedAt: lockAt?.toISOString?.() ?? null,
+          items: pl.items
+            .sort((a, b) => Number((b.protectScore ?? 0) - (a.protectScore ?? 0)))
+            .map((i) => ({
+              id: i.id,
+              playerId: i.playerId,
+              playerName: `${i.player.firstName} ${i.player.lastName}`,
+              position: i.player.primaryPosition,
+              isProtected: i.isProtected,
+              protectScore: i.protectScore != null ? Number(i.protectScore) : 0,
+              scoreBreakdown: (i.scoreBreakdownJson as object) ?? {},
+            })),
+        };
+      }
+
+      const canonical = canonicalByTeam.get(team.id);
+      if (canonical) {
+        return {
           id: null,
           teamId: team.id,
           teamName: team.name,
           teamAbbrev: team.abbrev,
           lockedAt: lockAt?.toISOString?.() ?? null,
-          items: [],
-        });
-      } else {
-        protectionLists.push({
-          id: result.protectionListId ?? pl?.id ?? null,
-          teamId: team.id,
-          teamName: team.name,
-          teamAbbrev: team.abbrev,
-          lockedAt: lockAt?.toISOString?.() ?? null,
-          items: result.items.map((i) => ({
-            id: i.id ?? null,
-            playerId: i.playerId,
-            playerName: i.playerName,
-            position: i.position,
-            isProtected: i.isProtected,
-            protectScore: i.protectScore,
-            scoreBreakdown: i.scoreBreakdown,
-          })),
-        });
+          items: canonical.items
+            .sort((a, b) => Number((b.protectScore ?? 0) - (a.protectScore ?? 0)))
+            .map((i) => ({
+              id: null as string | null,
+              playerId: i.playerId,
+              playerName: `${i.player.firstName} ${i.player.lastName}`,
+              position: i.player.primaryPosition,
+              isProtected: i.isProtected,
+              protectScore: i.protectScore != null ? Number(i.protectScore) : 0,
+              scoreBreakdown: (i.scoreBreakdownJson as object) ?? {},
+            })),
+        };
       }
-    }
+
+      return {
+        id: null,
+        teamId: team.id,
+        teamName: team.name,
+        teamAbbrev: team.abbrev,
+        lockedAt: lockAt?.toISOString?.() ?? null,
+        items: [] as Array<{
+          id: string | null;
+          playerId: string;
+          playerName: string;
+          position: string;
+          isProtected: boolean;
+          protectScore: number;
+          scoreBreakdown: object;
+        }>,
+      };
+    });
 
     const rules = run.rulesSnapshotJson as Record<string, unknown>;
     return NextResponse.json({

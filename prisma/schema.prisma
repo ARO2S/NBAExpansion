@@ -91,6 +91,7 @@ model Contract {
   player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@index([seasonId, teamId])
+  @@index([seasonId, playerId, teamId])
 }
 
 model PlayerSeasonMetric {
@@ -206,6 +207,10 @@ model DraftPick {
   expansionRunTeam RunTeam  @relation(fields: [expansionRunTeamId], references: [id], onDelete: Cascade)
   fromTeam         Team     @relation("PicksFromTeam", fields: [fromTeamId], references: [id], onDelete: Cascade)
   player           Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([runId, expansionRunTeamId])
+  @@index([runId, fromTeamId])
 }
 
 model Export {
