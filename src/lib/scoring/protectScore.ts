@@ -47,6 +47,7 @@ export interface TeamRanks {
 export interface ScoreBreakdown {
   importance: number;
   age_value: number;
+  age_value_raw: number;
   contract_value: number;
   accolades: number;
   team_ranks: TeamRanks;
@@ -151,6 +152,41 @@ export function ageValueScore(age: number, curve: ScoringRules["age_curve"]): nu
 
   // 35+
   return 15;
+}
+
+/**
+ * Adjust the raw age score based on the player's production role on the team.
+ *
+ * Role players (best stat rank worse than threshold in ALL of pts/ast/reb)
+ * get a dampened age score — being 25 matters a lot less when you're the
+ * 12th man. Young role players keep most of their value plus an upside
+ * bonus reflecting the chance they break out next season.
+ */
+function productionAdjustedAgeScore(
+  rawAgeScore: number,
+  age: number,
+  bestStatRank: number,
+  rules: ScoringRules
+): { score: number; applied: boolean } {
+  const cfg = rules.age_production;
+  if (bestStatRank <= cfg.role_player_rank_threshold) {
+    return { score: rawAgeScore, applied: false };
+  }
+
+  if (age < rules.age_curve.peak_age_start) {
+    // Young role player: mild dampening + youth upside that scales with
+    // how far below peak age they are (age 19 gets full bonus, peak-1 gets ~0).
+    const ageFraction = (rules.age_curve.peak_age_start - age)
+      / Math.max(1, rules.age_curve.peak_age_start - 19);
+    const upside = cfg.youth_upside_bonus * ageFraction;
+    return {
+      score: Math.min(100, rawAgeScore * cfg.young_role_player_factor + upside),
+      applied: true,
+    };
+  }
+
+  // Prime-age or older role player: significant dampening
+  return { score: rawAgeScore * cfg.veteran_role_player_factor, applied: true };
 }
 
 /** Importance score 0-100 from pts/ast/reb percentiles + role bumps */
@@ -288,7 +324,10 @@ export function computeProtectScoreForPlayer(
     tr.minutes_pct,
     rules
   );
-  const ageSc = ageValueScore(age, rules.age_curve);
+  const rawAgeSc = ageValueScore(age, rules.age_curve);
+  const bestStatRank = Math.min(tr.pts_rank, tr.ast_rank, tr.reb_rank);
+  const ageAdj = productionAdjustedAgeScore(rawAgeSc, age, bestStatRank, rules);
+  const ageSc = ageAdj.score;
   const contractRes = contractValueScore(p, age, salaryCap, rules);
   const accoladeSc = accoladesScore(p, rules);
 
@@ -300,6 +339,9 @@ export function computeProtectScoreForPlayer(
     w.accolades * accoladeSc;
 
   const allFlags = [...imp.flags, ...contractRes.flags];
+  if (ageAdj.applied) {
+    allFlags.push("AgeProductionAdj");
+  }
 
   // Rookie / sophomore bump: productive young players get a bonus
   const rookie = rookieBumpScore(age, tr.pts_pct, tr.ast_pct, tr.reb_pct, rules);
@@ -328,6 +370,7 @@ export function computeProtectScoreForPlayer(
     breakdown: {
       importance: imp.score,
       age_value: ageSc,
+      age_value_raw: rawAgeSc,
       contract_value: contractRes.score,
       accolades: accoladeSc,
       team_ranks: tr,

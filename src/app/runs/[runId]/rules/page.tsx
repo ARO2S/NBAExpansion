@@ -39,16 +39,17 @@ export default function RulesPage() {
   return (
     <div className="min-h-screen bg-slate-900">
       <header className="border-b border-white/10 bg-black/20">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2 text-white">
+        <div className="container mx-auto flex h-16 items-center justify-between gap-2 px-4">
+          <Link href="/" className="flex shrink-0 items-center gap-2 text-white">
             <ArrowLeft className="h-5 w-5" />
-            Back
+            <span className="hidden sm:inline">Back</span>
           </Link>
-          <h1 className="text-lg font-semibold text-white">{run.name}</h1>
+          <h1 className="truncate text-sm font-semibold text-white sm:text-lg">{run.name}</h1>
+          <div className="shrink-0 w-5 sm:w-0" />
         </div>
       </header>
 
-      <main className="container mx-auto max-w-3xl px-4 py-8">
+      <main className="container mx-auto max-w-3xl px-4 py-4 sm:py-8">
         <Card className="border-white/10 bg-white/5">
           <CardHeader>
             <CardTitle className="text-white">Rules Snapshot</CardTitle>
@@ -58,41 +59,41 @@ export default function RulesPage() {
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 sm:gap-4">
               <div>
                 <span className="text-slate-400">Protect per team:</span>{" "}
-                {rules.protectLimitPerTeam}
+                <span className="text-white">{rules.protectLimitPerTeam}</span>
               </div>
               <div>
                 <span className="text-slate-400">Max lose per team:</span>{" "}
-                {rules.eachExistingTeamCanLoseMax}
+                <span className="text-white">{rules.eachExistingTeamCanLoseMax}</span>
               </div>
               <div>
                 <span className="text-slate-400">Min picks:</span>{" "}
-                {rules.expansionDraftMinPicks}
+                <span className="text-white">{rules.expansionDraftMinPicks}</span>
               </div>
               <div>
                 <span className="text-slate-400">Max picks:</span>{" "}
-                {rules.expansionDraftMaxPicks}
+                <span className="text-white">{rules.expansionDraftMaxPicks}</span>
               </div>
               <div>
                 <span className="text-slate-400">Expansion cap Y1:</span>{" "}
-                {((rules.expansionCapPctYear1 ?? 0.667) * 100).toFixed(0)}%
+                <span className="text-white">{((rules.expansionCapPctYear1 ?? 0.667) * 100).toFixed(0)}%</span>
               </div>
               <div>
                 <span className="text-slate-400">Salary floor:</span>{" "}
-                {((rules.salaryFloorPct ?? 0.9) * 100).toFixed(0)}%
+                <span className="text-white">{((rules.salaryFloorPct ?? 0.9) * 100).toFixed(0)}%</span>
               </div>
             </div>
-            <div className="flex justify-between pt-4">
-              <Link href={`/runs/${runId}/protect`}>
-                <Button variant="outline" className="border-white/20 text-white">
+            <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:justify-between">
+              <Link href={`/runs/${runId}/protect`} className="w-full sm:w-auto">
+                <Button variant="outline" className="w-full border-white/20 bg-transparent text-white hover:bg-white/10 sm:w-auto">
                   Skip to Protection
                 </Button>
               </Link>
               <Button
                 onClick={advanceToProtect}
-                className="gap-2 bg-amber-500 hover:bg-amber-600"
+                className="w-full gap-2 bg-amber-500 hover:bg-amber-600 sm:w-auto"
               >
                 Continue to Protection Lists
                 <ArrowRight className="h-4 w-4" />

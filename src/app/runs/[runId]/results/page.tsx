@@ -41,16 +41,17 @@ export default function ResultsPage() {
   return (
     <div className="min-h-screen bg-slate-900">
       <header className="border-b border-white/10 bg-black/20">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2 text-white">
+        <div className="container mx-auto flex h-16 items-center justify-between gap-2 px-4">
+          <Link href="/" className="flex shrink-0 items-center gap-2 text-white">
             <ArrowLeft className="h-5 w-5" />
-            Back
+            <span className="hidden sm:inline">Back</span>
           </Link>
-          <h1 className="text-lg font-semibold text-white">{run.name}</h1>
+          <h1 className="truncate text-sm font-semibold text-white sm:text-lg">{run.name}</h1>
+          <div className="shrink-0 w-5 sm:w-0" />
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-4 sm:py-8">
         <Card className="mb-8 border-white/10 bg-white/5">
           <CardHeader>
             <CardTitle className="text-white">Export Results</CardTitle>
@@ -58,21 +59,21 @@ export default function ResultsPage() {
               Download your roster as text, with contracts, or as an image.
             </p>
           </CardHeader>
-          <CardContent className="flex flex-wrap gap-4">
-            <a href={`/api/export/text?runId=${runId}`} download>
-              <Button variant="outline" className="gap-2 border-white/20 text-white">
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
+            <a href={`/api/export/text?runId=${runId}`} download className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full gap-2 border-white/20 bg-transparent text-white hover:bg-white/10 sm:w-auto">
                 <FileText className="h-4 w-4" />
                 Text Roster
               </Button>
             </a>
-            <a href={`/api/export/text-contracts?runId=${runId}`} download>
-              <Button variant="outline" className="gap-2 border-white/20 text-white">
+            <a href={`/api/export/text-contracts?runId=${runId}`} download className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full gap-2 border-white/20 bg-transparent text-white hover:bg-white/10 sm:w-auto">
                 <Download className="h-4 w-4" />
                 Text + Contracts
               </Button>
             </a>
-            <a href={`/api/export/image?runId=${runId}`} target="_blank" rel="noopener">
-              <Button variant="outline" className="gap-2 border-white/20 text-white">
+            <a href={`/api/export/image?runId=${runId}`} target="_blank" rel="noopener" className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full gap-2 border-white/20 bg-transparent text-white hover:bg-white/10 sm:w-auto">
                 <Image className="h-4 w-4" />
                 Image (PNG)
               </Button>
@@ -102,13 +103,13 @@ export default function ResultsPage() {
                     {picks.map((p: any) => (
                       <div
                         key={p.id}
-                        className="flex justify-between rounded border border-white/10 px-3 py-2"
+                        className="flex flex-col gap-1 rounded border border-white/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
                       >
-                        <span className="text-white">
+                        <span className="text-sm text-white sm:text-base">
                           {p.pickNumber}. {p.playerName} ({p.position}) from{" "}
                           {p.fromTeamName}
                         </span>
-                        <span className="text-slate-400">
+                        <span className="text-sm text-slate-400">
                           ${(p.salaryAtPick / 1_000_000).toFixed(2)}M
                         </span>
                       </div>

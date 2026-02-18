@@ -78,6 +78,28 @@ export const scoringRulesSchema = z.object({
     max_salary_pct: 0.15,
     bonus: 8,
   }),
+  /**
+   * Production-adjusted age scoring.
+   * Role players (outside top-N in ALL of pts/ast/reb) get a dampened age
+   * score — prime-age matters less for replaceable bench pieces. Young role
+   * players keep most of their age value plus an upside bonus reflecting
+   * the chance they elevate their production next season.
+   */
+  age_production: z.object({
+    /** A player whose best stat rank is worse than this is a "role player" */
+    role_player_rank_threshold: z.number().int().min(1).default(10),
+    /** Multiplier applied to the raw age score for young (pre-peak) role players */
+    young_role_player_factor: z.number().min(0).max(1).default(0.85),
+    /** Multiplier applied to the raw age score for prime-or-older role players */
+    veteran_role_player_factor: z.number().min(0).max(1).default(0.55),
+    /** Max bonus points added for youth upside (scales by how far below peak age) */
+    youth_upside_bonus: z.number().min(0).default(15),
+  }).default({
+    role_player_rank_threshold: 10,
+    young_role_player_factor: 0.85,
+    veteran_role_player_factor: 0.55,
+    youth_upside_bonus: 15,
+  }),
   rfa_mode: z.enum(["risk", "simple"]).default("risk"),
 }).passthrough();
 
@@ -121,6 +143,12 @@ export const DEFAULT_SCORING_RULES: ScoringRules = {
     max_age: 25,
     max_salary_pct: 0.15,
     bonus: 8,
+  },
+  age_production: {
+    role_player_rank_threshold: 10,
+    young_role_player_factor: 0.85,
+    veteran_role_player_factor: 0.55,
+    youth_upside_bonus: 15,
   },
   rfa_mode: "risk",
 };
@@ -187,6 +215,7 @@ function normalizeRulesJson(obj: unknown): unknown {
     accolade_weights: o.accolade_weights ?? DEFAULT_SCORING_RULES.accolade_weights,
     rookie_bump: o.rookie_bump ?? o.rookieBump ?? DEFAULT_SCORING_RULES.rookie_bump,
     cost_controlled_bonus: o.cost_controlled_bonus ?? o.costControlledBonus ?? DEFAULT_SCORING_RULES.cost_controlled_bonus,
+    age_production: o.age_production ?? o.ageProduction ?? DEFAULT_SCORING_RULES.age_production,
     rfa_mode: rfaMode,
   };
 }

@@ -22,6 +22,7 @@ function ScoreBreakdownTooltip({
     importance?: number;
     impact?: number;
     age_value?: number;
+    age_value_raw?: number;
     age?: number;
     contract_value?: number;
     contract?: number;
@@ -32,12 +33,16 @@ function ScoreBreakdownTooltip({
     flags?: string[];
   };
   const imp = b.importance ?? b.impact;
-  const age = b.age_value ?? b.age;
+  const ageVal = b.age_value ?? b.age;
+  const ageRaw = b.age_value_raw;
+  const ageAdjusted = ageRaw != null && ageVal != null && Math.abs(ageRaw - ageVal) > 0.1;
   const contract = b.contract_value ?? b.contract;
   const acc = b.accolades ?? b.availability;
   const text = [
     imp != null && `Importance: ${Number(imp).toFixed(1)}`,
-    age != null && `Age: ${Number(age).toFixed(1)}`,
+    ageVal != null && (ageAdjusted
+      ? `Age: ${Number(ageVal).toFixed(1)} (raw ${Number(ageRaw).toFixed(1)})`
+      : `Age: ${Number(ageVal).toFixed(1)}`),
     contract != null && `Contract: ${Number(contract).toFixed(1)}`,
     acc != null && `Accolades: ${Number(acc).toFixed(1)}`,
     b.flags?.length ? `Flags: ${b.flags.join(", ")}` : null,
@@ -212,17 +217,18 @@ export default function ProtectPage() {
   return (
     <div className="min-h-screen bg-slate-900">
       <header className="border-b border-white/10 bg-black/20">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2 text-white">
+        <div className="container mx-auto flex h-16 items-center justify-between gap-2 px-4">
+          <Link href="/" className="flex shrink-0 items-center gap-2 text-white">
             <ArrowLeft className="h-5 w-5" />
-            Back
+            <span className="hidden sm:inline">Back</span>
           </Link>
-          <h1 className="text-lg font-semibold text-white">{run.name}</h1>
+          <h1 className="truncate text-sm font-semibold text-white sm:text-lg">{run.name}</h1>
+          <div className="shrink-0 w-5 sm:w-0" />
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        <Card className="mb-6 border-white/10 bg-white/5">
+      <main className="container mx-auto px-4 py-4 sm:py-8">
+        <Card className="mb-4 border-white/10 bg-white/5 sm:mb-6">
           <CardHeader>
             <CardTitle className="text-white">Protection Lists</CardTitle>
             <p className="text-slate-400">
@@ -251,12 +257,12 @@ export default function ProtectPage() {
         </Card>
 
         <Tabs defaultValue={run.protectionLists?.[0]?.teamId ?? run.protectionLists?.[0]?.teamAbbrev ?? "BOS"}>
-          <TabsList className="mb-4 flex-wrap gap-1 bg-white/5">
+          <TabsList className="mb-4 h-auto flex-wrap gap-1 bg-white/5 p-1.5">
             {run.protectionLists?.map((pl: any) => (
               <TabsTrigger
                 key={pl.teamId}
                 value={pl.teamId}
-                className="data-[state=active]:bg-amber-500/20"
+                className="px-2 py-1 text-xs sm:px-3 sm:py-1.5 sm:text-sm data-[state=active]:bg-amber-500/20"
               >
                 {pl.teamAbbrev}
                 {pl.lockedAt && <Lock className="ml-1 h-3 w-3" />}
@@ -267,7 +273,7 @@ export default function ProtectPage() {
           {run.protectionLists?.map((pl: any) => (
             <TabsContent key={pl.teamId} value={pl.teamId}>
               <Card className="border-white/10 bg-white/5">
-                <CardHeader className="flex flex-row items-center justify-between">
+                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle className="text-white">{pl.teamName}</CardTitle>
                     <p className="text-sm text-slate-400">
@@ -283,17 +289,18 @@ export default function ProtectPage() {
                             size="sm"
                             variant="outline"
                             onClick={() => regenerateTeam(pl.teamId)}
-                            className="border-white/20 text-white"
+                            className="border-white/20 bg-transparent text-white hover:bg-white/10"
                           >
                             <RefreshCw className="mr-1 h-4 w-4" />
-                            Reset to GM Key
+                            <span className="hidden sm:inline">Reset to GM Key</span>
+                            <span className="sm:hidden">Reset</span>
                           </Button>
                         )}
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => lockList(pl)}
-                          className="border-white/20 text-white"
+                          className="border-white/20 bg-transparent text-white hover:bg-white/10"
                         >
                           <Lock className="mr-1 h-4 w-4" />
                           Lock
@@ -309,9 +316,9 @@ export default function ProtectPage() {
                       .map((item: any) => (
                         <div
                           key={item.playerId}
-                          className="flex items-center justify-between rounded border border-white/10 bg-white/5 px-3 py-2"
+                          className="flex flex-col gap-2 rounded border border-white/10 bg-white/5 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
                         >
-                          <div>
+                          <div className="min-w-0">
                             <span className="font-medium text-white">
                               {item.playerName}
                             </span>
@@ -328,23 +335,25 @@ export default function ProtectPage() {
                               </ScoreBreakdownTooltip>
                             )}
                           </div>
-                          {pl.lockedAt ? (
-                            <Badge
-                              variant={item.isProtected ? "default" : "secondary"}
-                            >
-                              {item.isProtected ? "Protected" : "Exposed"}
-                            </Badge>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant={item.isProtected ? "default" : "outline"}
-                              onClick={() =>
-                                toggleProtection(item, pl, !item.isProtected)
-                              }
-                            >
-                              {item.isProtected ? "Protected" : "Exposed"}
-                            </Button>
-                          )}
+                          <div className="shrink-0">
+                            {pl.lockedAt ? (
+                              <Badge
+                                variant={item.isProtected ? "default" : "secondary"}
+                              >
+                                {item.isProtected ? "Protected" : "Exposed"}
+                              </Badge>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant={item.isProtected ? "default" : "outline"}
+                                onClick={() =>
+                                  toggleProtection(item, pl, !item.isProtected)
+                                }
+                              >
+                                {item.isProtected ? "Protected" : "Exposed"}
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       ))}
                   </div>
@@ -354,14 +363,14 @@ export default function ProtectPage() {
           ))}
         </Tabs>
 
-        <div className="mt-8 flex justify-end gap-4">
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-end sm:gap-4">
           {!allLocked && (
             <>
               {run.protectionLists?.some((p: any) => p.id != null) && (
                 <Button
                   variant="outline"
                   onClick={regenerateAll}
-                  className="border-white/20 text-white"
+                  className="border-white/20 bg-transparent text-white hover:bg-white/10"
                 >
                   <RefreshCw className="mr-1 h-4 w-4" />
                   Reset All to GM Key
@@ -370,7 +379,7 @@ export default function ProtectPage() {
               <Button
                 variant="outline"
                 onClick={lockAll}
-                className="border-white/20 text-white"
+                className="border-white/20 bg-transparent text-white hover:bg-white/10"
               >
                 Lock All Teams
               </Button>

@@ -151,65 +151,67 @@ export default function DraftPage() {
   return (
     <div className="min-h-screen bg-slate-900">
       <header className="border-b border-white/10 bg-black/20">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2 text-white">
+        <div className="container mx-auto flex h-16 items-center justify-between gap-2 px-4">
+          <Link href="/" className="flex shrink-0 items-center gap-2 text-white">
             <ArrowLeft className="h-5 w-5" />
-            Back
+            <span className="hidden sm:inline">Back</span>
           </Link>
-          <h1 className="text-lg font-semibold text-white">{run.name}</h1>
-          <Link href={`/runs/${runId}/results`}>
-            <Button variant="outline" size="sm" className="border-white/20 text-white">
+          <h1 className="truncate text-sm font-semibold text-white sm:text-lg">{run.name}</h1>
+          <Link href={`/runs/${runId}/results`} className="shrink-0">
+            <Button variant="outline" size="sm" className="border-white/20 bg-transparent text-white hover:bg-white/10">
               Results
             </Button>
           </Link>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid gap-6 lg:grid-cols-3">
+      <main className="container mx-auto px-4 py-4 sm:py-8">
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-4">
             <Card className="border-white/10 bg-white/5">
               <CardHeader>
                 <CardTitle className="text-white">Available Pool</CardTitle>
-                <div className="flex flex-wrap gap-2 pt-2">
+                <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:flex-wrap">
                   <Input
                     placeholder="Search player..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="max-w-xs bg-white/5 border-white/10 text-white"
+                    className="w-full bg-white/5 border-white/10 text-white sm:max-w-xs"
                   />
-                  <Select
-                    value={filterTeam}
-                    onValueChange={setFilterTeam}
-                  >
-                    <SelectTrigger className="w-[140px] bg-white/5 border-white/10 text-white">
-                      <SelectValue placeholder="Team" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All teams</SelectItem>
-                      {teams.map((t: any) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.abbrev}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={filterPosition}
-                    onValueChange={setFilterPosition}
-                  >
-                    <SelectTrigger className="w-[120px] bg-white/5 border-white/10 text-white">
-                      <SelectValue placeholder="Position" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="PG">PG</SelectItem>
-                      <SelectItem value="SG">SG</SelectItem>
-                      <SelectItem value="SF">SF</SelectItem>
-                      <SelectItem value="PF">PF</SelectItem>
-                      <SelectItem value="C">C</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <Select
+                      value={filterTeam}
+                      onValueChange={setFilterTeam}
+                    >
+                      <SelectTrigger className="w-full bg-white/5 border-white/10 text-white sm:w-[140px]">
+                        <SelectValue placeholder="Team" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All teams</SelectItem>
+                        {teams.map((t: any) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.abbrev}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={filterPosition}
+                      onValueChange={setFilterPosition}
+                    >
+                      <SelectTrigger className="w-full bg-white/5 border-white/10 text-white sm:w-[120px]">
+                        <SelectValue placeholder="Position" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="PG">PG</SelectItem>
+                        <SelectItem value="SG">SG</SelectItem>
+                        <SelectItem value="SF">SF</SelectItem>
+                        <SelectItem value="PF">PF</SelectItem>
+                        <SelectItem value="C">C</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -223,16 +225,16 @@ export default function DraftPage() {
                     filtered.map((p: any) => (
                       <div
                         key={`${p.playerId}-${p.teamId}`}
-                        className="flex items-center justify-between rounded border border-white/10 bg-white/5 px-3 py-2"
+                        className="flex flex-col gap-2 rounded border border-white/10 bg-white/5 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
                       >
-                        <div>
+                        <div className="min-w-0">
                           <span className="font-medium text-white">
                             {p.playerName}
                           </span>
                           <span className="ml-2 text-slate-400">
                             {p.position}
                           </span>
-                          <span className="ml-2 text-slate-500 text-sm">
+                          <span className="ml-2 text-sm text-slate-500">
                             ${(p.salary / 1_000_000).toFixed(1)}M · {p.yearsRemaining}y
                           </span>
                           {p.rating != null && (
@@ -248,7 +250,7 @@ export default function DraftPage() {
                             picking !== null ||
                             teamsThatLost.includes(p.teamId)
                           }
-                          className="bg-amber-500 hover:bg-amber-600"
+                          className="shrink-0 self-end bg-amber-500 hover:bg-amber-600 sm:self-auto"
                         >
                           <UserPlus className="mr-1 h-4 w-4" />
                           Draft

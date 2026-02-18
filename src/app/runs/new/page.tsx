@@ -70,7 +70,7 @@ export default function NewRunPage() {
         </div>
       </header>
 
-      <main className="container mx-auto max-w-2xl px-4 py-12">
+      <main className="container mx-auto max-w-2xl px-4 py-6 sm:py-12">
         <Card className="border-white/10 bg-white/5">
           <CardHeader>
             <CardTitle className="text-2xl text-white">
