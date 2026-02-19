@@ -38,6 +38,9 @@ export interface RosterPlayerForScoring {
   // accolades (optional)
   allStarAppearances?: number;
   championships?: number;
+  // draft info (optional — null means undrafted or unknown)
+  draftYear?: number | null;
+  draftPick?: number | null;
 }
 
 export interface TeamRanks {
@@ -66,6 +69,8 @@ export interface ScoreBreakdown {
     rpg: number;
     games_played: number;
     starts: number;
+    draft_year?: number;
+    draft_pick?: number;
   };
   flags: string[];
   team_direction: TeamDirection;
@@ -402,6 +407,20 @@ export function computeProtectScoreForPlayer(
   const top3Importance = tr.pts_pct >= 0.75 || tr.pts_rank <= 3 || tr.ast_rank <= 3 || tr.reb_rank <= 3;
   if (top3Importance && age < 30) {
     protectScore = Math.max(protectScore, 65);
+    allFlags.push("YoungTopImportance");
+  }
+
+  // Guardrail: recent lottery pick with meaningful minutes -> min score floor
+  const lpg = rules.lottery_pick_guardrail;
+  const isRecentLotteryPick =
+    p.draftPick != null &&
+    p.draftYear != null &&
+    p.draftPick <= lpg.max_pick &&
+    seasonYear - p.draftYear <= lpg.max_years_ago &&
+    p.minutesPerGame >= lpg.min_mpg;
+  if (isRecentLotteryPick) {
+    protectScore = Math.max(protectScore, lpg.min_score_floor);
+    allFlags.push("LotteryPickGuardrail");
   }
 
   const rawScore = Math.min(100, Math.max(0, protectScore));
@@ -425,6 +444,8 @@ export function computeProtectScoreForPlayer(
         rpg: p.reboundsPerGame,
         games_played: p.gamesPlayed,
         starts: p.starts,
+        draft_year: p.draftYear ?? undefined,
+        draft_pick: p.draftPick ?? undefined,
       },
       flags: allFlags,
       team_direction: teamDirection,

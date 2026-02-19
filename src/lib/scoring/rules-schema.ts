@@ -123,6 +123,27 @@ export const scoringRulesSchema = z.object({
     youth_upside_bonus: 15,
   }),
   rfa_mode: z.enum(["risk", "simple"]).default("risk"),
+  /**
+   * Lottery pick protection guardrail.
+   * Any player drafted in the top N picks within the last X drafts
+   * who has at least min_mpg playing time gets a score floor.
+   * No franchise exposes a recent lottery pick that quickly.
+   */
+  lottery_pick_guardrail: z.object({
+    /** Highest overall pick number that counts as a lottery pick (1-based, inclusive) */
+    max_pick: z.number().int().min(1).default(14),
+    /** How many completed seasons ago a pick still qualifies (e.g. 3 = drafted in year, year-1, year-2) */
+    max_years_ago: z.number().int().min(0).default(3),
+    /** Minimum minutes per game to qualify (filters out truly inactive players) */
+    min_mpg: z.number().min(0).default(5),
+    /** Minimum raw score to enforce */
+    min_score_floor: z.number().min(0).max(100).default(70),
+  }).default({
+    max_pick: 14,
+    max_years_ago: 3,
+    min_mpg: 5,
+    min_score_floor: 70,
+  }),
   /** How to map raw scores to 0-100 display scores (team-relative) */
   normalization_mode: z.enum(["team_minmax", "team_percentile"]).default("team_minmax"),
   /**
@@ -218,6 +239,12 @@ export const DEFAULT_SCORING_RULES: ScoringRules = {
     youth_upside_bonus: 15,
   },
   rfa_mode: "risk",
+  lottery_pick_guardrail: {
+    max_pick: 14,
+    max_years_ago: 3,
+    min_mpg: 5,
+    min_score_floor: 70,
+  },
   normalization_mode: "team_minmax",
   strategy_profiles: undefined,
 };
@@ -286,6 +313,7 @@ function normalizeRulesJson(obj: unknown): unknown {
     cost_controlled_bonus: o.cost_controlled_bonus ?? o.costControlledBonus ?? DEFAULT_SCORING_RULES.cost_controlled_bonus,
     age_production: o.age_production ?? o.ageProduction ?? DEFAULT_SCORING_RULES.age_production,
     rfa_mode: rfaMode,
+    lottery_pick_guardrail: o.lottery_pick_guardrail ?? DEFAULT_SCORING_RULES.lottery_pick_guardrail,
     normalization_mode: o.normalization_mode ?? "team_minmax",
     strategy_profiles: o.strategy_profiles ?? undefined,
   };

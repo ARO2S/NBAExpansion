@@ -28,5 +28,7 @@ export function toRosterPlayerForScoring(
     isRFAAfterSeason: r.contract?.isRFAAfterSeason,
     allStarAppearances: r.accolades?.allStarAppearances,
     championships: r.accolades?.championships,
+    draftYear: r.player.draftYear,
+    draftPick: r.player.draftPick,
   };
 }

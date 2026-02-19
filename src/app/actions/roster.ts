@@ -9,6 +9,8 @@ export interface RosterPlayerData {
     lastName: string;
     birthdate: Date;
     primaryPosition: string;
+    draftYear: number | null;
+    draftPick: number | null;
   };
   contract: {
     salary: number;
@@ -73,6 +75,8 @@ export async function getTeamRosterData(
           lastName: m.player.lastName,
           birthdate: m.player.birthdate,
           primaryPosition: m.player.primaryPosition,
+          draftYear: m.player.draftYear,
+          draftPick: m.player.draftPick,
         },
         contract: c
           ? {
@@ -109,12 +113,14 @@ export async function getTeamRosterData(
     const p = c.player;
     result.push({
       player: {
-        id: p.id,
-        firstName: p.firstName,
-        lastName: p.lastName,
-        birthdate: p.birthdate,
-        primaryPosition: p.primaryPosition,
-      },
+          id: p.id,
+          firstName: p.firstName,
+          lastName: p.lastName,
+          birthdate: p.birthdate,
+          primaryPosition: p.primaryPosition,
+          draftYear: p.draftYear,
+          draftPick: p.draftPick,
+        },
       contract: {
         salary: Number(c.salary),
         yearsRemaining: c.yearsRemaining,

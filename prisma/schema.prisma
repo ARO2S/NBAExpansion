@@ -61,6 +61,8 @@ model Player {
   lastName         String   @map("last_name")
   birthdate        DateTime @db.Date
   primaryPosition  String   @map("primary_position") // PG, SG, SF, PF, C
+  draftYear        Int?     @map("draft_year")        // year player was drafted (null = undrafted/unknown)
+  draftPick        Int?     @map("draft_pick")        // overall pick number (1-60; null = undrafted/unknown)
   createdAt        DateTime @default(now()) @map("created_at")
 
   contracts             Contract[]
