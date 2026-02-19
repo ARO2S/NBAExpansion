@@ -70,45 +70,62 @@ export async function GET(
       const lockAt = pl?.lockedAt ?? lockByTeam.get(team.id) ?? null;
 
       if (pl) {
+        const sorted = pl.items
+          .sort((a, b) =>
+            Number(b.protectScoreRaw ?? b.protectScore ?? 0) -
+            Number(a.protectScoreRaw ?? a.protectScore ?? 0)
+          );
         return {
           id: pl.id,
           teamId: team.id,
           teamName: team.name,
           teamAbbrev: team.abbrev,
+          teamDirection: (pl as { teamDirection?: string }).teamDirection ?? "neutral",
           lockedAt: lockAt?.toISOString?.() ?? null,
-          items: pl.items
-            .sort((a, b) => Number((b.protectScore ?? 0) - (a.protectScore ?? 0)))
-            .map((i) => ({
+          items: sorted.map((i) => {
+            const raw = i.protectScoreRaw != null ? Number(i.protectScoreRaw)
+              : i.protectScore != null ? Number(i.protectScore) : 0;
+            const display = i.protectScoreDisplay ?? Math.round(raw);
+            return {
               id: i.id,
               playerId: i.playerId,
               playerName: `${i.player.firstName} ${i.player.lastName}`,
               position: i.player.primaryPosition,
               isProtected: i.isProtected,
-              protectScore: i.protectScore != null ? Number(i.protectScore) : 0,
+              protectScore: display,
+              protectScoreRaw: raw,
+              protectScoreDisplay: display,
               scoreBreakdown: (i.scoreBreakdownJson as object) ?? {},
-            })),
+            };
+          }),
         };
       }
 
       const canonical = canonicalByTeam.get(team.id);
       if (canonical) {
+        const sorted = canonical.items
+          .sort((a, b) => Number(b.protectScore ?? 0) - Number(a.protectScore ?? 0));
         return {
           id: null,
           teamId: team.id,
           teamName: team.name,
           teamAbbrev: team.abbrev,
+          teamDirection: "neutral",
           lockedAt: lockAt?.toISOString?.() ?? null,
-          items: canonical.items
-            .sort((a, b) => Number((b.protectScore ?? 0) - (a.protectScore ?? 0)))
-            .map((i) => ({
+          items: sorted.map((i) => {
+            const raw = i.protectScore != null ? Number(i.protectScore) : 0;
+            return {
               id: null as string | null,
               playerId: i.playerId,
               playerName: `${i.player.firstName} ${i.player.lastName}`,
               position: i.player.primaryPosition,
               isProtected: i.isProtected,
-              protectScore: i.protectScore != null ? Number(i.protectScore) : 0,
+              protectScore: raw,
+              protectScoreRaw: raw,
+              protectScoreDisplay: raw,
               scoreBreakdown: (i.scoreBreakdownJson as object) ?? {},
-            })),
+            };
+          }),
         };
       }
 
@@ -117,6 +134,7 @@ export async function GET(
         teamId: team.id,
         teamName: team.name,
         teamAbbrev: team.abbrev,
+        teamDirection: "neutral",
         lockedAt: lockAt?.toISOString?.() ?? null,
         items: [] as Array<{
           id: string | null;
@@ -125,6 +143,8 @@ export async function GET(
           position: string;
           isProtected: boolean;
           protectScore: number;
+          protectScoreRaw: number;
+          protectScoreDisplay: number;
           scoreBreakdown: object;
         }>,
       };

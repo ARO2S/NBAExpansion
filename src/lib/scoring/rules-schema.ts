@@ -1,5 +1,27 @@
 import { z } from "zod";
 
+/** Team strategy direction – shifts weights and bonus multipliers */
+export type TeamDirection = "rebuild" | "neutral" | "contend";
+
+const strategyWeightsSchema = z.object({
+  importance: z.number().min(0).max(1),
+  age: z.number().min(0).max(1),
+  contract: z.number().min(0).max(1),
+  accolades: z.number().min(0).max(1),
+});
+
+const strategyBonusModifiersSchema = z.object({
+  rookie_bump_multiplier: z.number().default(1.0),
+  cost_controlled_multiplier: z.number().default(1.0),
+  ufa_penalty_multiplier: z.number().default(1.0),
+  starter_bonus_additional: z.number().default(0),
+});
+
+const strategyProfileSchema = z.object({
+  weights: strategyWeightsSchema,
+  bonuses: strategyBonusModifiersSchema,
+});
+
 /** Zod schema for scoring rules within rules_snapshot_json */
 export const scoringRulesSchema = z.object({
   protect_limit_per_team: z.number().int().min(1).default(8),
@@ -101,9 +123,54 @@ export const scoringRulesSchema = z.object({
     youth_upside_bonus: 15,
   }),
   rfa_mode: z.enum(["risk", "simple"]).default("risk"),
+  /** How to map raw scores to 0-100 display scores (team-relative) */
+  normalization_mode: z.enum(["team_minmax", "team_percentile"]).default("team_minmax"),
+  /**
+   * Per-direction strategy profiles. If absent, hardcoded defaults are used.
+   * Each profile overrides scoring weights and bonus multipliers for that direction.
+   */
+  strategy_profiles: z.object({
+    rebuild: strategyProfileSchema.optional(),
+    neutral: strategyProfileSchema.optional(),
+    contend: strategyProfileSchema.optional(),
+  }).optional(),
 }).passthrough();
 
 export type ScoringRules = z.infer<typeof scoringRulesSchema>;
+
+export type StrategyProfile = z.infer<typeof strategyProfileSchema>;
+export type BonusModifiers = z.infer<typeof strategyBonusModifiersSchema>;
+
+/** Default hardcoded strategy profiles (used when rules.strategy_profiles is absent) */
+export const DEFAULT_STRATEGY_PROFILES: Record<TeamDirection, StrategyProfile> = {
+  neutral: {
+    weights: { importance: 0.45, age: 0.25, contract: 0.25, accolades: 0.05 },
+    bonuses: {
+      rookie_bump_multiplier: 1.0,
+      cost_controlled_multiplier: 1.0,
+      ufa_penalty_multiplier: 1.0,
+      starter_bonus_additional: 0,
+    },
+  },
+  rebuild: {
+    weights: { importance: 0.38, age: 0.32, contract: 0.28, accolades: 0.02 },
+    bonuses: {
+      rookie_bump_multiplier: 1.15,
+      cost_controlled_multiplier: 1.15,
+      ufa_penalty_multiplier: 1.10,
+      starter_bonus_additional: 0,
+    },
+  },
+  contend: {
+    weights: { importance: 0.52, age: 0.20, contract: 0.23, accolades: 0.05 },
+    bonuses: {
+      rookie_bump_multiplier: 0.90,
+      cost_controlled_multiplier: 0.90,
+      ufa_penalty_multiplier: 1.25,
+      starter_bonus_additional: 1,
+    },
+  },
+};
 
 export const DEFAULT_SCORING_RULES: ScoringRules = {
   protect_limit_per_team: 8,
@@ -151,6 +218,8 @@ export const DEFAULT_SCORING_RULES: ScoringRules = {
     youth_upside_bonus: 15,
   },
   rfa_mode: "risk",
+  normalization_mode: "team_minmax",
+  strategy_profiles: undefined,
 };
 
 function mapKeysToSnakeCase<T extends Record<string, unknown>>(obj: T): Record<string, unknown> {
@@ -217,6 +286,8 @@ function normalizeRulesJson(obj: unknown): unknown {
     cost_controlled_bonus: o.cost_controlled_bonus ?? o.costControlledBonus ?? DEFAULT_SCORING_RULES.cost_controlled_bonus,
     age_production: o.age_production ?? o.ageProduction ?? DEFAULT_SCORING_RULES.age_production,
     rfa_mode: rfaMode,
+    normalization_mode: o.normalization_mode ?? "team_minmax",
+    strategy_profiles: o.strategy_profiles ?? undefined,
   };
 }
 

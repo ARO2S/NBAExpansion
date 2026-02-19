@@ -7,14 +7,39 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ArrowLeft, Lock, RefreshCw, Info } from "lucide-react";
 import { resetProtectionListToGmKey } from "@/app/actions/protectionList";
 
+type TeamDirection = "rebuild" | "neutral" | "contend";
+
+const DIRECTION_LABELS: Record<TeamDirection, string> = {
+  rebuild: "Rebuild",
+  neutral: "Neutral",
+  contend: "Contend",
+};
+
+const DIRECTION_DESCRIPTIONS: Record<TeamDirection, string> = {
+  rebuild: "Values youth & cost-controlled assets",
+  neutral: "Balanced evaluation",
+  contend: "Prioritizes proven starters & win-now talent",
+};
+
 function ScoreBreakdownTooltip({
   breakdown,
+  displayScore,
+  rawScore,
   children,
 }: {
   breakdown: Record<string, unknown> | null;
+  displayScore: number;
+  rawScore: number;
   children: React.ReactNode;
 }) {
   if (!breakdown) return <>{children}</>;
@@ -31,6 +56,9 @@ function ScoreBreakdownTooltip({
     team_ranks?: Record<string, number>;
     inputs?: Record<string, unknown>;
     flags?: string[];
+    team_direction?: string;
+    weights_used?: Record<string, number>;
+    bonus_modifiers?: Record<string, number>;
   };
   const imp = b.importance ?? b.impact;
   const ageVal = b.age_value ?? b.age;
@@ -38,13 +66,18 @@ function ScoreBreakdownTooltip({
   const ageAdjusted = ageRaw != null && ageVal != null && Math.abs(ageRaw - ageVal) > 0.1;
   const contract = b.contract_value ?? b.contract;
   const acc = b.accolades ?? b.availability;
+
+  const showRaw = Math.abs(displayScore - rawScore) > 0.5;
+
   const text = [
+    `Display: ${displayScore}` + (showRaw ? ` (raw: ${Number(rawScore).toFixed(1)})` : ""),
     imp != null && `Importance: ${Number(imp).toFixed(1)}`,
     ageVal != null && (ageAdjusted
       ? `Age: ${Number(ageVal).toFixed(1)} (raw ${Number(ageRaw).toFixed(1)})`
       : `Age: ${Number(ageVal).toFixed(1)}`),
     contract != null && `Contract: ${Number(contract).toFixed(1)}`,
     acc != null && `Accolades: ${Number(acc).toFixed(1)}`,
+    b.team_direction && `Direction: ${b.team_direction}`,
     b.flags?.length ? `Flags: ${b.flags.join(", ")}` : null,
     b.team_ranks
       ? `Ranks: PTS #${b.team_ranks.pts_rank} (${((b.team_ranks.pts_pct ?? 0) * 100).toFixed(0)}%), AST #${b.team_ranks.ast_rank}, REB #${b.team_ranks.reb_rank}`
@@ -55,8 +88,8 @@ function ScoreBreakdownTooltip({
   return (
     <span className="group relative inline-flex items-center">
       {children}
-      <span className="ml-1 cursor-help opacity-60 hover:opacity-100">
-        <Info className="h-3.5 w-3.5" title={text.replace(/\n/g, " | ")} />
+      <span className="ml-1 cursor-help opacity-60 hover:opacity-100" aria-label={text.replace(/\n/g, " | ")}>
+        <Info className="h-3.5 w-3.5" />
       </span>
       <span
         className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden max-w-xs rounded bg-slate-800 px-2 py-1.5 text-xs text-white shadow-lg group-hover:block"
@@ -68,12 +101,27 @@ function ScoreBreakdownTooltip({
   );
 }
 
+/** Display score pill: large number with color band */
+function ScorePill({ score }: { score: number }) {
+  const color =
+    score >= 80 ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+    : score >= 60 ? "bg-sky-500/20 text-sky-300 border-sky-500/30"
+    : score >= 40 ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+    : "bg-slate-500/20 text-slate-400 border-slate-500/30";
+  return (
+    <span className={`inline-flex min-w-[2.5rem] items-center justify-center rounded border px-1.5 py-0.5 text-xs font-semibold tabular-nums ${color}`}>
+      {score}
+    </span>
+  );
+}
+
 export default function ProtectPage() {
   const params = useParams();
   const router = useRouter();
   const runId = params.runId as string;
   const [run, setRun] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [directionSaving, setDirectionSaving] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/runs/${runId}`)
@@ -105,6 +153,27 @@ export default function ProtectPage() {
     const refetch = await fetch(`/api/runs/${runId}`);
     const data = await refetch.json();
     if (data.run) setRun(data.run);
+  }
+
+  async function handleDirectionChange(pl: { teamId: string }, direction: TeamDirection) {
+    setDirectionSaving(pl.teamId);
+    try {
+      const res = await fetch(`/api/runs/${runId}/protect`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId: pl.teamId, teamDirection: direction }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error ?? "Failed to save direction");
+        return;
+      }
+      const refetch = await fetch(`/api/runs/${runId}`);
+      const data = await refetch.json();
+      if (data.run) setRun(data.run);
+    } finally {
+      setDirectionSaving(null);
+    }
   }
 
   async function lockList(pl: { id: string | null; teamId: string }) {
@@ -232,9 +301,8 @@ export default function ProtectPage() {
           <CardHeader>
             <CardTitle className="text-white">Protection Lists</CardTitle>
             <p className="text-slate-400">
-              Protections come from the GM Key (base protections). Toggle any
-              player if you disagree. Lock each team when done. When all locked,
-              proceed to the draft.
+              Protections come from the GM Key (base protections). Set each team's strategy
+              direction, then toggle players if you disagree. Lock each team when done.
             </p>
             {run.rules && (
               <div className="mt-3 rounded border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
@@ -248,7 +316,7 @@ export default function ProtectPage() {
               <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-amber-200">
                 <p className="font-medium">No protection data.</p>
                 <p className="mt-2 text-sm">
-                  Go to <Link href="/admin" className="underline">Admin</Link> and click <strong>Generate GM Key</strong> once. 
+                  Go to <Link href="/admin" className="underline">Admin</Link> and click <strong>Generate GM Key</strong> once.
                   That creates the base protection list—all draft runs use it. Refresh this page after generating.
                 </p>
               </div>
@@ -270,97 +338,141 @@ export default function ProtectPage() {
             ))}
           </TabsList>
 
-          {run.protectionLists?.map((pl: any) => (
-            <TabsContent key={pl.teamId} value={pl.teamId}>
-              <Card className="border-white/10 bg-white/5">
-                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <CardTitle className="text-white">{pl.teamName}</CardTitle>
-                    <p className="text-sm text-slate-400">
-                      {pl.items.filter((i: any) => i.isProtected).length} protected
-                      (max ~{run.rules?.protectLimitPerTeam ?? run.rules?.protect_limit_per_team ?? 8})
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    {!pl.lockedAt && (
-                      <>
-                        {pl.id != null && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => regenerateTeam(pl.teamId)}
-                            className="border-white/20 bg-transparent text-white hover:bg-white/10"
-                          >
-                            <RefreshCw className="mr-1 h-4 w-4" />
-                            <span className="hidden sm:inline">Reset to GM Key</span>
-                            <span className="sm:hidden">Reset</span>
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => lockList(pl)}
-                          className="border-white/20 bg-transparent text-white hover:bg-white/10"
-                        >
-                          <Lock className="mr-1 h-4 w-4" />
-                          Lock
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {pl.items
-                      .sort((a: any, b: any) => (b.protectScore ?? 0) - (a.protectScore ?? 0))
-                      .map((item: any) => (
-                        <div
-                          key={item.playerId}
-                          className="flex flex-col gap-2 rounded border border-white/10 bg-white/5 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
-                        >
-                          <div className="min-w-0">
-                            <span className="font-medium text-white">
-                              {item.playerName}
-                            </span>
-                            <span className="ml-2 text-slate-400">
-                              {item.position}
-                            </span>
-                            {item.protectScore != null && (
-                              <ScoreBreakdownTooltip
-                                breakdown={item.scoreBreakdown ?? null}
+          {run.protectionLists?.map((pl: any) => {
+            const direction: TeamDirection = pl.teamDirection ?? "neutral";
+            const isSavingDirection = directionSaving === pl.teamId;
+            return (
+              <TabsContent key={pl.teamId} value={pl.teamId}>
+                <Card className="border-white/10 bg-white/5">
+                  <CardHeader className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <CardTitle className="text-white">{pl.teamName}</CardTitle>
+                        <p className="text-sm text-slate-400">
+                          {pl.items.filter((i: any) => i.isProtected).length} protected
+                          (max ~{run.rules?.protectLimitPerTeam ?? run.rules?.protect_limit_per_team ?? 8})
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        {!pl.lockedAt && (
+                          <>
+                            {/* Team Direction Dropdown */}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-slate-400 hidden sm:inline">Direction:</span>
+                              <Select
+                                value={direction}
+                                onValueChange={(val) => handleDirectionChange(pl, val as TeamDirection)}
+                                disabled={isSavingDirection}
                               >
-                                <span className="ml-2 text-xs text-slate-500">
-                                  score: {Number(item.protectScore).toFixed(2)}
-                                </span>
-                              </ScoreBreakdownTooltip>
-                            )}
-                          </div>
-                          <div className="shrink-0">
-                            {pl.lockedAt ? (
-                              <Badge
-                                variant={item.isProtected ? "default" : "secondary"}
-                              >
-                                {item.isProtected ? "Protected" : "Exposed"}
-                              </Badge>
-                            ) : (
+                                <SelectTrigger className="h-8 w-[110px] border-white/20 bg-white/5 text-xs text-white focus:ring-0">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="border-white/20 bg-slate-800 text-white">
+                                  {(["rebuild", "neutral", "contend"] as TeamDirection[]).map((d) => (
+                                    <SelectItem key={d} value={d} className="text-xs focus:bg-white/10">
+                                      <span className="font-medium">{DIRECTION_LABELS[d]}</span>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {isSavingDirection && (
+                                <span className="text-xs text-slate-400 animate-pulse">saving…</span>
+                              )}
+                            </div>
+                            {pl.id != null && (
                               <Button
                                 size="sm"
-                                variant={item.isProtected ? "default" : "outline"}
-                                onClick={() =>
-                                  toggleProtection(item, pl, !item.isProtected)
-                                }
+                                variant="outline"
+                                onClick={() => regenerateTeam(pl.teamId)}
+                                className="border-white/20 bg-transparent text-white hover:bg-white/10"
                               >
-                                {item.isProtected ? "Protected" : "Exposed"}
+                                <RefreshCw className="mr-1 h-4 w-4" />
+                                <span className="hidden sm:inline">Reset to GM Key</span>
+                                <span className="sm:hidden">Reset</span>
                               </Button>
                             )}
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          ))}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => lockList(pl)}
+                              className="border-white/20 bg-transparent text-white hover:bg-white/10"
+                            >
+                              <Lock className="mr-1 h-4 w-4" />
+                              Lock
+                            </Button>
+                          </>
+                        )}
+                        {pl.lockedAt && (
+                          <Badge variant="outline" className="border-white/20 text-slate-400">
+                            {DIRECTION_LABELS[direction]}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    {/* Direction description */}
+                    {!pl.lockedAt && (
+                      <p className="text-xs text-slate-500 italic">
+                        {DIRECTION_DESCRIPTIONS[direction]}
+                      </p>
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {pl.items
+                        .sort((a: any, b: any) => (b.protectScoreRaw ?? b.protectScore ?? 0) - (a.protectScoreRaw ?? a.protectScore ?? 0))
+                        .map((item: any) => {
+                          const displayScore = item.protectScoreDisplay ?? item.protectScore ?? 0;
+                          const rawScore = item.protectScoreRaw ?? item.protectScore ?? 0;
+                          return (
+                            <div
+                              key={item.playerId}
+                              className="flex flex-col gap-2 rounded border border-white/10 bg-white/5 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div className="flex min-w-0 items-center gap-2">
+                                <ScoreBreakdownTooltip
+                                  breakdown={item.scoreBreakdown ?? null}
+                                  displayScore={Math.round(displayScore)}
+                                  rawScore={rawScore}
+                                >
+                                  <ScorePill score={Math.round(displayScore)} />
+                                </ScoreBreakdownTooltip>
+                                <div className="min-w-0">
+                                  <span className="font-medium text-white">
+                                    {item.playerName}
+                                  </span>
+                                  <span className="ml-2 text-slate-400 text-sm">
+                                    {item.position}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="shrink-0">
+                                {pl.lockedAt ? (
+                                  <Badge
+                                    variant={item.isProtected ? "default" : "secondary"}
+                                  >
+                                    {item.isProtected ? "Protected" : "Exposed"}
+                                  </Badge>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant={item.isProtected ? "default" : "outline"}
+                                    onClick={() =>
+                                      toggleProtection(item, pl, !item.isProtected)
+                                    }
+                                  >
+                                    {item.isProtected ? "Protected" : "Exposed"}
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            );
+          })}
         </Tabs>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-end sm:gap-4">

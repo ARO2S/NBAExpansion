@@ -3,7 +3,13 @@
  * Computes team-relative ranks at runtime; does NOT persist ranks to DB.
  */
 
-import { parseScoringRules, type ScoringRules } from "./rules-schema";
+import {
+  parseScoringRules,
+  type ScoringRules,
+  type TeamDirection,
+  type BonusModifiers,
+  DEFAULT_STRATEGY_PROFILES,
+} from "./rules-schema";
 
 const SEASON_START_MONTH = 7; // July
 const SEASON_START_DAY = 1;
@@ -62,10 +68,15 @@ export interface ScoreBreakdown {
     starts: number;
   };
   flags: string[];
+  team_direction: TeamDirection;
+  weights_used: { importance: number; age: number; contract: number; accolades: number };
+  bonus_modifiers: BonusModifiers;
 }
 
 export type ScoreResult = {
+  /** Raw algorithmic score (0-100). Use this for sorting and protection selection. */
   protect_score: number;
+  protect_score_raw: number;
   breakdown: ScoreBreakdown;
 };
 
@@ -196,7 +207,8 @@ function importanceScore(
   astPct: number,
   rebPct: number,
   minutesPct: number,
-  rules: ScoringRules
+  rules: ScoringRules,
+  starterBonusAdditional: number
 ): { score: number; flags: string[] } {
   const flags: string[] = [];
   const rb = rules.role_bumps;
@@ -204,7 +216,7 @@ function importanceScore(
     100 * (0.45 * ptsPct + 0.35 * astPct + 0.2 * rebPct);
   const isStarter = p.gamesPlayed > 0 && p.starts >= rb.starter_games_pct * p.gamesPlayed;
   if (isStarter) {
-    score += rb.starter_bonus;
+    score += rb.starter_bonus + starterBonusAdditional;
     flags.push("Starter");
   }
   if (minutesPct >= rb.minutes_pct_threshold) {
@@ -219,7 +231,8 @@ function contractValueScore(
   p: RosterPlayerForScoring,
   age: number,
   salaryCap: number,
-  rules: ScoringRules
+  rules: ScoringRules,
+  ufaPenaltyMultiplier: number
 ): { score: number; flags: string[] } {
   const flags: string[] = [];
   if (p.salary == null && p.yearsRemaining == null) {
@@ -240,7 +253,7 @@ function contractValueScore(
     flags.push("OptionRisk");
   }
   if (p.isUFAAfterSeason) {
-    score -= 5;
+    score -= 5 * ufaPenaltyMultiplier;
     flags.push("UFA");
   }
   if (p.isRFAAfterSeason && rules.rfa_mode === "risk") {
@@ -273,7 +286,8 @@ function rookieBumpScore(
   ptsPct: number,
   astPct: number,
   rebPct: number,
-  rules: ScoringRules
+  rules: ScoringRules,
+  multiplier: number
 ): { bonus: number; applied: boolean } {
   const rb = rules.rookie_bump;
   if (age > rb.max_age) return { bonus: 0, applied: false };
@@ -281,7 +295,7 @@ function rookieBumpScore(
   if (bestPct < rb.min_stat_pct) return { bonus: 0, applied: false };
   // Scale bonus linearly from 0 at min_stat_pct to full bonus at 1.0
   const scale = (bestPct - rb.min_stat_pct) / (1 - rb.min_stat_pct);
-  return { bonus: rb.bonus * scale, applied: true };
+  return { bonus: rb.bonus * scale * multiplier, applied: true };
 }
 
 /**
@@ -294,7 +308,8 @@ function costControlledBonus(
   age: number,
   salary: number | undefined,
   salaryCap: number,
-  rules: ScoringRules
+  rules: ScoringRules,
+  multiplier: number
 ): { bonus: number; applied: boolean } {
   const cc = rules.cost_controlled_bonus;
   if (age > cc.max_age) return { bonus: 0, applied: false };
@@ -303,7 +318,22 @@ function costControlledBonus(
   if (salaryPct >= cc.max_salary_pct) return { bonus: 0, applied: false };
   // Full bonus at 0% of cap, linearly decreasing to 0 at max_salary_pct
   const scale = 1 - salaryPct / cc.max_salary_pct;
-  return { bonus: cc.bonus * scale, applied: true };
+  return { bonus: cc.bonus * scale * multiplier, applied: true };
+}
+
+/**
+ * Resolve the strategy profile for a given team direction.
+ * Falls back to hardcoded defaults when not present in rules snapshot.
+ */
+function resolveStrategyProfile(
+  rules: ScoringRules,
+  direction: TeamDirection
+): { weights: ScoringRules["scoring_weights"]; bonuses: BonusModifiers } {
+  const profileFromRules = rules.strategy_profiles?.[direction];
+  if (profileFromRules) {
+    return profileFromRules;
+  }
+  return DEFAULT_STRATEGY_PROFILES[direction];
 }
 
 /** Compute protect score for a single player */
@@ -312,31 +342,36 @@ export function computeProtectScoreForPlayer(
   ranks: Map<string, TeamRanks>,
   salaryCap: number,
   seasonYear: number,
-  rules: ScoringRules
+  rules: ScoringRules,
+  teamDirection: TeamDirection = "neutral"
 ): ScoreResult {
   const age = getAgeAtSeasonStart(p.birthdate, seasonYear);
   const tr = ranks.get(p.playerId)!;
+
+  const { weights, bonuses } = resolveStrategyProfile(rules, teamDirection);
+
   const imp = importanceScore(
     p,
     tr.pts_pct,
     tr.ast_pct,
     tr.reb_pct,
     tr.minutes_pct,
-    rules
+    rules,
+    bonuses.starter_bonus_additional
   );
   const rawAgeSc = ageValueScore(age, rules.age_curve);
   const bestStatRank = Math.min(tr.pts_rank, tr.ast_rank, tr.reb_rank);
   const ageAdj = productionAdjustedAgeScore(rawAgeSc, age, bestStatRank, rules);
   const ageSc = ageAdj.score;
-  const contractRes = contractValueScore(p, age, salaryCap, rules);
+  const contractRes = contractValueScore(p, age, salaryCap, rules, bonuses.ufa_penalty_multiplier);
   const accoladeSc = accoladesScore(p, rules);
 
-  const w = rules.scoring_weights;
+  // Combine component scores using direction-specific weights
   let protectScore =
-    w.importance * imp.score +
-    w.age * ageSc +
-    w.contract * contractRes.score +
-    w.accolades * accoladeSc;
+    weights.importance * imp.score +
+    weights.age * ageSc +
+    weights.contract * contractRes.score +
+    weights.accolades * accoladeSc;
 
   const allFlags = [...imp.flags, ...contractRes.flags];
   if (ageAdj.applied) {
@@ -344,14 +379,20 @@ export function computeProtectScoreForPlayer(
   }
 
   // Rookie / sophomore bump: productive young players get a bonus
-  const rookie = rookieBumpScore(age, tr.pts_pct, tr.ast_pct, tr.reb_pct, rules);
+  const rookie = rookieBumpScore(
+    age, tr.pts_pct, tr.ast_pct, tr.reb_pct,
+    rules, bonuses.rookie_bump_multiplier
+  );
   if (rookie.applied) {
     protectScore += rookie.bonus;
     allFlags.push("RookieBump");
   }
 
   // Cost-controlled bonus: young players on cheap deals have surplus value
-  const cc = costControlledBonus(age, p.salary, salaryCap, rules);
+  const cc = costControlledBonus(
+    age, p.salary, salaryCap,
+    rules, bonuses.cost_controlled_multiplier
+  );
   if (cc.applied) {
     protectScore += cc.bonus;
     allFlags.push("CostControlled");
@@ -363,10 +404,11 @@ export function computeProtectScoreForPlayer(
     protectScore = Math.max(protectScore, 65);
   }
 
-  protectScore = Math.min(100, Math.max(0, protectScore));
+  const rawScore = Math.min(100, Math.max(0, protectScore));
 
   return {
-    protect_score: protectScore,
+    protect_score: rawScore,
+    protect_score_raw: rawScore,
     breakdown: {
       importance: imp.score,
       age_value: ageSc,
@@ -385,6 +427,9 @@ export function computeProtectScoreForPlayer(
         starts: p.starts,
       },
       flags: allFlags,
+      team_direction: teamDirection,
+      weights_used: weights,
+      bonus_modifiers: bonuses,
     },
   };
 }
@@ -425,16 +470,17 @@ export function scoreRoster(
   roster: RosterPlayerForScoring[],
   salaryCap: number,
   seasonYear: number,
-  rulesJson: unknown
+  rulesJson: unknown,
+  teamDirection: TeamDirection = "neutral"
 ): ScoreRosterResult {
   const rules = parseScoringRules(rulesJson);
   const ranks = computeTeamRanks(roster);
   const scored = roster.map((p) => ({
     player: p,
-    result: computeProtectScoreForPlayer(p, ranks, salaryCap, seasonYear, rules),
+    result: computeProtectScoreForPlayer(p, ranks, salaryCap, seasonYear, rules, teamDirection),
   }));
 
-  scored.sort((a, b) => b.result.protect_score - a.result.protect_score);
+  scored.sort((a, b) => b.result.protect_score_raw - a.result.protect_score_raw);
 
   const protectLimit = rules.protect_limit_per_team;
   const protectedIds = new Set(scored.slice(0, protectLimit).map((s) => s.player.playerId));

@@ -167,6 +167,7 @@ model ProtectionList {
   createdAt       DateTime  @default(now()) @map("created_at")
   lockedAt        DateTime? @map("locked_at")
   createdByUserId String?   @map("created_by_user_id") @db.Uuid
+  teamDirection   String    @default("neutral") @map("team_direction")  // rebuild | neutral | contend
 
   run         DraftRun              @relation(fields: [runId], references: [id], onDelete: Cascade)
   team        Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -177,14 +178,16 @@ model ProtectionList {
 }
 
 model ProtectionListItem {
-  id                String   @id @default(uuid()) @db.Uuid
-  protectionListId  String   @map("protection_list_id") @db.Uuid
-  playerId          String   @map("player_id") @db.Uuid
-  isProtected       Boolean  @map("is_protected")
-  protectScore      Decimal? @map("protect_score") @db.Decimal(8, 4)
-  scoreBreakdownJson Json?   @map("score_breakdown_json") @db.JsonB
-  reasonNotes       String?  @map("reason_notes") @db.Text
-  createdAt        DateTime @default(now()) @map("created_at")
+  id                  String   @id @default(uuid()) @db.Uuid
+  protectionListId    String   @map("protection_list_id") @db.Uuid
+  playerId            String   @map("player_id") @db.Uuid
+  isProtected         Boolean  @map("is_protected")
+  protectScore        Decimal? @map("protect_score") @db.Decimal(8, 4)       // kept for backward compat (= raw)
+  protectScoreRaw     Decimal? @map("protect_score_raw") @db.Decimal(8, 4)   // raw algorithmic score
+  protectScoreDisplay Int?     @map("protect_score_display")                  // normalized 0-100 display score
+  scoreBreakdownJson  Json?    @map("score_breakdown_json") @db.JsonB
+  reasonNotes         String?  @map("reason_notes") @db.Text
+  createdAt           DateTime @default(now()) @map("created_at")
 
   protectionList ProtectionList @relation(fields: [protectionListId], references: [id], onDelete: Cascade)
   player         Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
