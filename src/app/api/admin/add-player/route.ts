@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { normalizeTeamAbbrev } from "@/lib/team-abbrev";
+import { requireAdmin } from "@/lib/admin";
 
 /**
  * POST /api/admin/add-player
@@ -20,6 +21,8 @@ import { normalizeTeamAbbrev } from "@/lib/team-abbrev";
  * }
  */
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   let body: {
     name?: string;
     teamAbbrev?: string;

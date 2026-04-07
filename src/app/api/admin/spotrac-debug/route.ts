@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SPOTRAC_CONTRACTS_URL } from "@/lib/spotrac-debug-shared";
+import { requireAdmin } from "@/lib/admin";
 
 export async function GET(_req: NextRequest) {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   try {
     const { chromium } = await import("playwright");
     const browser = await chromium.launch({

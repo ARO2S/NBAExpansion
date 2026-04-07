@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { execSync } from "child_process";
+import { requireAdmin } from "@/lib/admin";
 
 export async function POST() {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   try {
     const projectRoot = process.cwd();
     execSync("npx tsx prisma/seed.ts", {

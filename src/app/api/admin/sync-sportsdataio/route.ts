@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sportsDataIOAdapter } from "@/lib/providers/sportsdataio";
 import { syncFromProvider } from "@/lib/providers/sync-to-db";
+import { requireAdmin } from "@/lib/admin";
 
 const SEASON_YEAR = 2025; // 2025-26 season
 
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   if (!process.env.SPORTSDATAIO_API_KEY) {
     return NextResponse.json(
       { error: "SPORTSDATAIO_API_KEY is not configured in env" },

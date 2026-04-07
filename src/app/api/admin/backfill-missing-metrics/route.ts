@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/admin";
 
 /**
  * POST /api/admin/backfill-missing-metrics
@@ -9,6 +10,8 @@ import { prisma } from "@/lib/db";
  * metric row so they appear on their team's roster for scoring/protection.
  */
 export async function POST() {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   try {
     const season = await prisma.season.findFirst({ orderBy: { year: "desc" } });
     if (!season) {

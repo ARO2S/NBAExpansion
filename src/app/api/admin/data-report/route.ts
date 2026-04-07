@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/admin";
 
 /**
  * GET /api/admin/data-report
@@ -16,6 +17,8 @@ import { prisma } from "@/lib/db";
  * - Players with zero games played
  */
 export async function GET() {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   try {
     const season = await prisma.season.findFirst({ orderBy: { year: "desc" } });
     if (!season) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { TEAM_NAMES } from "@/lib/team-abbrev";
+import { requireAdmin } from "@/lib/admin";
 
 /**
  * POST /api/admin/reset-player-data
@@ -14,6 +15,8 @@ import { TEAM_NAMES } from "@/lib/team-abbrev";
  * Deletes: Everything player-related, all draft runs, exports, canonical lists.
  */
 export async function POST() {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   try {
     // 1. Delete in dependency order (children first)
     await prisma.export.deleteMany({});

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/admin";
 
 /**
  * POST /api/admin/move-player
@@ -9,6 +10,8 @@ import { prisma } from "@/lib/db";
  * For mid-season trades where the player hasn't logged minutes on the new team.
  */
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   const body = await req.json().catch(() => null);
   const playerName = (body?.playerName ?? "").trim();
   const newTeamAbbrev = (body?.newTeamAbbrev ?? "").trim().toUpperCase();

@@ -3,6 +3,7 @@ import {
   applyContractRowsToDb,
   parseBBRContractCsv,
 } from "@/lib/spotrac";
+import { requireAdmin } from "@/lib/admin";
 
 const SEASON_YEAR = 2025; // 2025-26 season
 
@@ -12,6 +13,8 @@ const SEASON_YEAR = 2025; // 2025-26 season
  * Parses Basketball-Reference contract CSV and updates Contract.salary / yearsRemaining for 2025-26.
  */
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   let body: { csvText?: string };
   try {
     body = await req.json();

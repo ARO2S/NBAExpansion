@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/admin";
 
 /**
  * POST /api/admin/backfill-minimum-contracts
@@ -9,6 +10,8 @@ import { prisma } from "@/lib/db";
  * G-League players who appear in BBR stats but not on the contracts page.
  */
 export async function POST() {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   try {
     const season = await prisma.season.findFirst({ orderBy: { year: "desc" } });
     if (!season) {

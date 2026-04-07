@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncSpotracToDb } from "@/lib/spotrac";
+import { requireAdmin } from "@/lib/admin";
 
 const SEASON_YEAR = 2025; // 2025-26 season
 
@@ -9,6 +10,8 @@ const SEASON_YEAR = 2025; // 2025-26 season
  * for 2025-26. Match is by player name.
  */
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin();
+  if (authError) return authError;
 
   try {
     const result = await syncSpotracToDb(SEASON_YEAR);

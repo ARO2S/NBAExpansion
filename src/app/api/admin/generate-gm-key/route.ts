@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { generateCanonicalProtectionLists } from "@/app/actions/protectionList";
+import { requireAdmin } from "@/lib/admin";
 
 export async function POST() {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   try {
     const result = await generateCanonicalProtectionLists();
     if (!result.ok) {

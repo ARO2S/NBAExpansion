@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/admin";
 
 /**
  * POST /api/admin/resolve-multi-team
@@ -12,6 +13,8 @@ import { prisma } from "@/lib/db";
  * Returns a summary of what was resolved.
  */
 export async function POST() {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   try {
     const season = await prisma.season.findFirst({ orderBy: { year: "desc" } });
     if (!season) {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/admin";
 
 /**
  * GET /api/admin/players-with-teams
@@ -7,6 +8,8 @@ import { prisma } from "@/lib/db";
  * Use this to verify player → team linkage (e.g. "Naz Reid" → "Minnesota Timberwolves").
  */
 export async function GET() {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   try {
     const latestSeason = await prisma.season.findFirst({
       orderBy: { year: "desc" },

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ballDontLieAdapter } from "@/lib/providers/balldontlie";
 import { sportsDataIOAdapter } from "@/lib/providers/sportsdataio";
 import { syncFromProvider } from "@/lib/providers/sync-to-db";
+import { requireAdmin } from "@/lib/admin";
 
 const SEASON_YEAR = 2025; // 2025-26 season
 
@@ -10,6 +11,8 @@ const SEASON_YEAR = 2025; // 2025-26 season
  * Runs SportsDataIO first, then Ball Don't Lie.
  */
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   const hasSportsDataIO = Boolean(process.env.SPORTSDATAIO_API_KEY);
   const hasBallDontLie = Boolean(process.env.BALLDONTLIE_API_KEY);
 

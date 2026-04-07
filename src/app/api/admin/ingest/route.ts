@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ingestData } from "@/lib/admin-ingest/upsert";
 import { ingestPayloadSchema } from "@/lib/admin-ingest/schema";
+import { requireAdmin } from "@/lib/admin";
 
 /**
  * POST /api/admin/ingest
@@ -8,6 +9,8 @@ import { ingestPayloadSchema } from "@/lib/admin-ingest/schema";
  * Validates with Zod and upserts by provider_player_id or (first_name, last_name, birthdate).
  */
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin();
+  if (authError) return authError;
   let body: unknown;
   try {
     body = await req.json();
