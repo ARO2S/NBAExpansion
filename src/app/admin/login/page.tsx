@@ -101,7 +101,7 @@ function LoginForm() {
 
 export default function AdminLoginPage() {
   return (
-    <Suspense>
+    <Suspense fallback={null}>
       <LoginForm />
     </Suspense>
   );
