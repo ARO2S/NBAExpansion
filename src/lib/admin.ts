@@ -17,9 +17,9 @@ export function isAdminEmail(email: string | null | undefined): boolean {
  */
 export async function requireAdmin(): Promise<NextResponse | null> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user }, error } = await supabase.auth.getUser();
+
+  if (error) console.error("[requireAdmin] getUser error:", error.message);
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

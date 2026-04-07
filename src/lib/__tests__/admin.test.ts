@@ -63,7 +63,7 @@ describe("requireAdmin", () => {
 
   it("returns null when user is an admin", async () => {
     // isAdminEmail reads from ADMIN_EMAILS env var — seed it
-    process.env.ADMIN_EMAILS = "admin@example.com";
+    vi.stubEnv("ADMIN_EMAILS", "admin@example.com");
 
     mockCreateClient.mockResolvedValue({
       auth: {
@@ -76,5 +76,7 @@ describe("requireAdmin", () => {
 
     const result = await requireAdmin();
     expect(result).toBeNull();
+
+    vi.unstubAllEnvs();
   });
 });
