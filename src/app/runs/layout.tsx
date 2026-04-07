@@ -4,7 +4,7 @@ export default function RunsLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative min-h-screen bg-[#05070A]">
+    <div className="relative min-h-screen bg-background">
       {/* Subtle orange grid — fixed so it doesn't scroll */}
       <div
         className="pointer-events-none fixed inset-0 -z-10

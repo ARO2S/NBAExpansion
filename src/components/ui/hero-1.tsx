@@ -84,7 +84,7 @@ export function Hero({
             {eyebrow}
           </span>
           <h1
-            className="font-archivo uppercase font-black text-5xl sm:text-6xl lg:text-7xl leading-none tracking-tight"
+            className="font-archivo uppercase text-5xl sm:text-6xl lg:text-7xl leading-none tracking-tight"
             style={{
               background: "linear-gradient(135deg, #ffffff 40%, #cbd5e1 100%)",
               WebkitBackgroundClip: "text",
