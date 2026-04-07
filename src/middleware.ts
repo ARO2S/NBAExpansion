@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
-  .split(",")
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
-
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -33,9 +28,14 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
   const { data: { user } } = await supabase.auth.getUser();
   const isAdmin = user?.email
-    ? ADMIN_EMAILS.includes(user.email.toLowerCase())
+    ? adminEmails.includes(user.email.toLowerCase())
     : false;
 
   // Protect admin API routes — return JSON errors
