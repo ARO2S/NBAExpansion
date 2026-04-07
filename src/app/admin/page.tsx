@@ -343,12 +343,27 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-slate-900">
       <header className="border-b border-white/10 bg-black/20">
-        <div className="container mx-auto flex h-16 items-center px-4">
-          <Link href="/" className="flex items-center gap-2 text-white">
-            <ArrowLeft className="h-5 w-5" />
-            Back
-          </Link>
-          <h1 className="ml-4 text-lg font-semibold text-white">Admin</h1>
+        <div className="container mx-auto flex h-16 items-center justify-between px-4">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-2 text-white">
+              <ArrowLeft className="h-5 w-5" />
+              Back
+            </Link>
+            <h1 className="text-lg font-semibold text-white">Admin</h1>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-white/20 bg-transparent text-white hover:bg-white/10"
+            onClick={async () => {
+              const { createClient } = await import("@/lib/supabase/client");
+              const supabase = createClient();
+              await supabase.auth.signOut();
+              window.location.href = "/admin/login";
+            }}
+          >
+            Sign Out
+          </Button>
         </div>
       </header>
 
