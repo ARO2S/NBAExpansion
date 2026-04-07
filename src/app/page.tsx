@@ -1,50 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trophy } from "lucide-react";
 
-interface DraftRun {
-  id: string;
-  name: string;
-  status: string;
-  createdAt: string;
-}
-
 export default function HomePage() {
-  const [runs, setRuns] = useState<DraftRun[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/runs")
-      .then((r) => r.json())
-      .then((data) => setRuns(data.runs ?? []))
-      .catch(() => setRuns([]))
-      .finally(() => setLoading(false));
-  }, []);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-orange-900/20">
       <header className="border-b border-white/10 bg-black/20 backdrop-blur">
-        <div className="container mx-auto flex h-16 items-center justify-between gap-2 px-4">
+        <div className="container mx-auto flex h-16 items-center px-4">
           <div className="flex min-w-0 items-center gap-2">
             <Trophy className="h-6 w-6 shrink-0 text-amber-400 sm:h-8 sm:w-8" />
             <h1 className="truncate text-base font-bold text-white sm:text-xl">
               NBA Expansion Draft Simulator
             </h1>
           </div>
-          <Link href="/admin" className="shrink-0">
-            <Button variant="outline" size="sm" className="border-white/20 bg-transparent text-white hover:bg-white/10">
-              Admin
-            </Button>
-          </Link>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8 sm:py-12">
-        <section className="mb-8 text-center sm:mb-12">
+        <section className="text-center">
           <h2 className="mb-4 text-2xl font-bold text-white sm:text-4xl">
             Simulate Your NBA Expansion Team
           </h2>
@@ -59,43 +34,6 @@ export default function HomePage() {
               Start New Draft Run
             </Button>
           </Link>
-        </section>
-
-        <section>
-          <h3 className="mb-4 text-xl font-semibold text-white">
-            Recent Draft Runs
-          </h3>
-          {loading ? (
-            <p className="text-slate-400">Loading...</p>
-          ) : runs.length === 0 ? (
-            <Card className="border-white/10 bg-white/5">
-              <CardContent className="pt-6">
-                <p className="text-slate-400">
-                  No draft runs yet. Start a new one to get began!
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {runs.map((run) => (
-                <Link key={run.id} href={`/runs/${run.id}/protect`}>
-                  <Card className="cursor-pointer border-white/10 bg-white/5 transition hover:bg-white/10">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg text-white">
-                        {run.name}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-slate-400">
-                        Status: {run.status} •{" "}
-                        {new Date(run.createdAt).toLocaleDateString()}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          )}
         </section>
       </main>
     </div>
