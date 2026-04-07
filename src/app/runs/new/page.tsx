@@ -60,7 +60,7 @@ export default function NewRunPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div>
       <header className="border-b border-white/10 bg-black/20">
         <div className="container mx-auto flex h-16 items-center px-4">
           <Link href="/" className="flex items-center gap-2 text-white">
@@ -165,7 +165,7 @@ export default function NewRunPage() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-amber-500 hover:bg-amber-600"
+                className="w-full bg-orange-500 hover:bg-orange-400 shadow-[0_0_16px_rgba(249,115,22,0.3)]"
               >
                 {loading ? "Creating..." : "Create Draft Run"}
               </Button>

@@ -39,7 +39,7 @@ export default function ResultsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen">
       <header className="border-b border-white/10 bg-black/20">
         <div className="container mx-auto flex h-16 items-center justify-between gap-2 px-4">
           <Link href="/" className="flex shrink-0 items-center gap-2 text-white">

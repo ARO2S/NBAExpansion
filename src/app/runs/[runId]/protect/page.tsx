@@ -199,7 +199,7 @@ export default function ProtectPage() {
 
   if (loading)
     return (
-      <div className="min-h-screen bg-slate-900">
+      <div>
         <header className="border-b border-white/10 bg-black/20">
           <div className="container mx-auto flex h-16 items-center px-4">
             <Link href="/" className="flex items-center gap-2 text-white">
@@ -233,7 +233,7 @@ export default function ProtectPage() {
     );
   if (!run)
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center">
         <p className="text-white">Run not found</p>
       </div>
     );
@@ -330,7 +330,7 @@ export default function ProtectPage() {
               <TabsTrigger
                 key={pl.teamId}
                 value={pl.teamId}
-                className="px-2 py-1 text-xs sm:px-3 sm:py-1.5 sm:text-sm data-[state=active]:bg-amber-500/20"
+                className="px-2 py-1 text-xs sm:px-3 sm:py-1.5 sm:text-sm data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-300"
               >
                 {pl.teamAbbrev}
                 {pl.lockedAt && <Lock className="ml-1 h-3 w-3" />}
@@ -508,7 +508,7 @@ export default function ProtectPage() {
               });
               router.push(`/runs/${runId}/draft`);
             }}
-            className="bg-amber-500 hover:bg-amber-600"
+            className="bg-orange-500 hover:bg-orange-400 shadow-[0_0_16px_rgba(249,115,22,0.3)]"
           >
             {allLocked ? "Continue to Draft" : "Lock all teams to continue"}
           </Button>

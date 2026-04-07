@@ -97,7 +97,7 @@ export default function DraftPage() {
 
   if (loading)
     return (
-      <div className="min-h-screen bg-slate-900">
+      <div>
         <header className="border-b border-white/10 bg-black/20">
           <div className="container mx-auto flex h-16 items-center px-4">
             <Link href="/" className="flex items-center gap-2 text-white">
@@ -132,7 +132,7 @@ export default function DraftPage() {
     );
   if (!run)
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center">
         <p className="text-white">Run not found</p>
       </div>
     );
@@ -173,7 +173,7 @@ export default function DraftPage() {
   const currentRoster = rosterByTeam[selectedExpansionTeam] ?? [];
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen">
       <header className="border-b border-white/10 bg-black/20">
         <div className="container mx-auto flex h-16 items-center justify-between gap-2 px-4">
           <Link href="/" className="flex shrink-0 items-center gap-2 text-white">
@@ -274,7 +274,7 @@ export default function DraftPage() {
                             picking !== null ||
                             teamsThatLost.includes(p.teamId)
                           }
-                          className="shrink-0 self-end bg-amber-500 hover:bg-amber-600 sm:self-auto"
+                          className="shrink-0 self-end bg-orange-500 hover:bg-orange-400 sm:self-auto"
                         >
                           <UserPlus className="mr-1 h-4 w-4" />
                           Draft
