@@ -79,7 +79,7 @@ export function Hero({
       {/* Two-column content */}
       <div className="relative z-10 container mx-auto px-6 md:px-12 py-24 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
         {/* LEFT COLUMN */}
-        <div className="flex flex-col gap-6 opacity-0 animate-slide-from-left">
+        <div className="flex flex-col gap-6 animate-slide-from-left">
           <span className="text-sm text-[#FF8A00] font-medium uppercase tracking-widest">
             {eyebrow}
           </span>
@@ -120,7 +120,7 @@ export function Hero({
         </div>
 
         {/* RIGHT COLUMN — glass card stack */}
-        <div className="relative h-[460px] opacity-0 animate-slide-from-right hidden md:block">
+        <div className="relative h-[460px] animate-slide-from-right hidden md:block">
 
           {/* BOTTOM CARD — dark court segment */}
           <div
