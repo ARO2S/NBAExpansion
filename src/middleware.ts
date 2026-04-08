@@ -33,7 +33,13 @@ export async function middleware(request: NextRequest) {
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 
-  const { data: { user } } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    // If Supabase is unreachable, allow the login page through
+  }
   const isAdmin = user?.email
     ? adminEmails.includes(user.email.toLowerCase())
     : false;
