@@ -1,7 +1,9 @@
 "use client"
 
+import Image from "next/image"
 import { ArrowUpRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import expansionLogo from "@/app/nbaexpansionv2.png"
 
 interface HeroProps {
   eyebrow?: string
@@ -108,14 +110,14 @@ export function Hero({
                 <a href={ctaHref}>{ctaLabel}</a>
               </Button>
             )}
-            <Button
+            {/* <Button
               variant="ghost"
               className="px-8 py-3 text-base font-semibold text-[#E2E8F0] border border-white/20
                 hover:bg-white/5 hover:border-white/40 transition-all duration-200 flex items-center gap-2"
             >
               Request a Brief
               <ArrowUpRight className="w-4 h-4" />
-            </Button>
+            </Button> */}
           </div>
         </div>
 
@@ -177,17 +179,9 @@ export function Hero({
             className="glass-card absolute top-0 right-0 w-40 h-40 flex flex-col items-center justify-center gap-2 animate-float-medium"
             style={{ zIndex: 3 }}
           >
-            <div
-              className="relative w-24 h-24 rounded-full border-2 border-[#FF8A00]/60 flex items-center justify-center"
-              style={{ background: "radial-gradient(circle at 40% 35%, #b45309, #7c2d12)" }}
-            >
-              <svg viewBox="0 0 96 96" className="absolute w-24 h-24" aria-hidden="true">
-                <path d="M 48 4 Q 20 48 48 92" fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" />
-                <path d="M 48 4 Q 76 48 48 92" fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" />
-                <path d="M 4 48 Q 48 20 92 48" fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" />
-              </svg>
+            <div className="relative w-24 h-24 rounded-full border-2 border-[#FF8A00]/60 overflow-hidden">
+              <Image src={expansionLogo} alt="NBA Expansion logo" fill className="object-cover" />
             </div>
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-inter">Player Image</span>
           </div>
 
         </div>
