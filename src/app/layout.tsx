@@ -36,6 +36,27 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "NBA Expansion Draft Simulator",
   description: "Simulate drafting an NBA expansion team under configurable rules",
+  openGraph: {
+    title: "NBA Expansion Draft Simulator",
+    description: "Simulate drafting an NBA expansion team under configurable rules",
+    url: "https://www.nbaexpansion.com",
+    siteName: "NBA Expansion Draft Simulator",
+    images: [
+      {
+        url: "/ogimage.png",
+        width: 1200,
+        height: 630,
+        alt: "NBA Expansion Draft Simulator",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "NBA Expansion Draft Simulator",
+    description: "Simulate drafting an NBA expansion team under configurable rules",
+    images: ["/ogimage.png"],
+  },
 };
 
 export default function RootLayout({
