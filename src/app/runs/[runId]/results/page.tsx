@@ -5,13 +5,16 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Download, FileText, Image } from "lucide-react";
+import { ArrowLeft, Check, Copy, Share2 } from "lucide-react";
 
 export default function ResultsPage() {
   const params = useParams();
   const runId = params.runId as string;
   const [run, setRun] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [copyState, setCopyState] = useState<"idle" | "copying" | "copied">("idle");
+  const [copyContractsState, setCopyContractsState] = useState<"idle" | "copying" | "copied">("idle");
+  const [shareState, setShareState] = useState<"idle" | "sharing" | "copied">("idle");
 
   useEffect(() => {
     fetch(`/api/runs/${runId}`)
@@ -20,6 +23,53 @@ export default function ResultsPage() {
       .catch(() => setRun(null))
       .finally(() => setLoading(false));
   }, [runId]);
+
+  async function fetchText(url: string): Promise<string> {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Export failed");
+    return res.text();
+  }
+
+  async function copyRoster() {
+    setCopyState("copying");
+    try {
+      const text = await fetchText(`/api/export/text?runId=${runId}`);
+      await navigator.clipboard.writeText(text);
+      setCopyState("copied");
+      setTimeout(() => setCopyState("idle"), 2000);
+    } catch {
+      setCopyState("idle");
+    }
+  }
+
+  async function copyContracts() {
+    setCopyContractsState("copying");
+    try {
+      const text = await fetchText(`/api/export/text-contracts?runId=${runId}`);
+      await navigator.clipboard.writeText(text);
+      setCopyContractsState("copied");
+      setTimeout(() => setCopyContractsState("idle"), 2000);
+    } catch {
+      setCopyContractsState("idle");
+    }
+  }
+
+  async function shareRoster() {
+    setShareState("sharing");
+    try {
+      const text = await fetchText(`/api/export/text-contracts?runId=${runId}`);
+      if (navigator.share) {
+        await navigator.share({ title: run?.name ?? "NBA Expansion Draft", text });
+        setShareState("idle");
+      } else {
+        await navigator.clipboard.writeText(text);
+        setShareState("copied");
+        setTimeout(() => setShareState("idle"), 2000);
+      }
+    } catch {
+      setShareState("idle");
+    }
+  }
 
   if (loading) return <div className="p-8 text-white">Loading...</div>;
   if (!run) return <div className="p-8 text-white">Run not found</div>;
@@ -54,30 +104,47 @@ export default function ResultsPage() {
       <main className="container mx-auto px-4 py-4 sm:py-8">
         <Card className="mb-8 border-white/10 bg-white/5">
           <CardHeader>
-            <CardTitle className="text-white">Export Results</CardTitle>
+            <CardTitle className="text-white">Share Results</CardTitle>
             <p className="text-slate-400">
-              Download your roster as text, with contracts, or as an image.
+              Copy your roster to paste anywhere, or tap Share to send via text, social, or any app.
             </p>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
-            <a href={`/api/export/text?runId=${runId}`} download className="w-full sm:w-auto">
-              <Button variant="outline" className="w-full gap-2 border-white/20 bg-transparent text-white hover:bg-white/10 sm:w-auto">
-                <FileText className="h-4 w-4" />
-                Text Roster
-              </Button>
-            </a>
-            <a href={`/api/export/text-contracts?runId=${runId}`} download className="w-full sm:w-auto">
-              <Button variant="outline" className="w-full gap-2 border-white/20 bg-transparent text-white hover:bg-white/10 sm:w-auto">
-                <Download className="h-4 w-4" />
-                Text + Contracts
-              </Button>
-            </a>
-            <a href={`/api/export/image?runId=${runId}`} target="_blank" rel="noopener" className="w-full sm:w-auto">
-              <Button variant="outline" className="w-full gap-2 border-white/20 bg-transparent text-white hover:bg-white/10 sm:w-auto">
-                <Image className="h-4 w-4" />
-                Image (PNG)
-              </Button>
-            </a>
+            <Button
+              variant="outline"
+              onClick={copyRoster}
+              disabled={copyState === "copying"}
+              className="w-full gap-2 border-white/20 bg-transparent text-white hover:bg-white/10 sm:w-auto"
+            >
+              {copyState === "copied" ? (
+                <><Check className="h-4 w-4 text-green-400" />Copied!</>
+              ) : (
+                <><Copy className="h-4 w-4" />Copy Roster</>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={copyContracts}
+              disabled={copyContractsState === "copying"}
+              className="w-full gap-2 border-white/20 bg-transparent text-white hover:bg-white/10 sm:w-auto"
+            >
+              {copyContractsState === "copied" ? (
+                <><Check className="h-4 w-4 text-green-400" />Copied!</>
+              ) : (
+                <><Copy className="h-4 w-4" />Copy + Contracts</>
+              )}
+            </Button>
+            <Button
+              onClick={shareRoster}
+              disabled={shareState === "sharing"}
+              className="w-full gap-2 bg-orange-500 text-white hover:bg-orange-400 sm:w-auto"
+            >
+              {shareState === "copied" ? (
+                <><Check className="h-4 w-4" />Copied!</>
+              ) : (
+                <><Share2 className="h-4 w-4" />Share</>
+              )}
+            </Button>
           </CardContent>
         </Card>
 
